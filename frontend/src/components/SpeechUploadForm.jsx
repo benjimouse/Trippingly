@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext'; // To get currentUser
 
-const SpeechUploadForm = () => {
+const SpeechUploadForm = ({ onUploadSuccess }) => {
   const { currentUser } = useAuth();
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -75,7 +75,6 @@ const SpeechUploadForm = () => {
       // Example: VITE_CLOUD_FUNCTION_URL="http://localhost:5001/trippingly-on-the-tongue/us-central1/api"
       // Replace YOUR_PROJECT_ID and REGION as appropriate.
       const cloudFunctionBaseUrl = import.meta.env.VITE_CLOUD_FUNCTION_URL || 'http://localhost:5001/YOUR_PROJECT_ID/us-central1/api'; // Fallback for local
-      // TODO: Replace YOUR_PROJECT_ID and REGION with actual values (e.g. trippingly-on-the-tongue and us-central1)
       const uploadUrl = `${cloudFunctionBaseUrl}/uploadSpeech`;
 
       const response = await fetch(uploadUrl, {
@@ -94,9 +93,11 @@ const SpeechUploadForm = () => {
 
       if (response.ok) { // Check if the response status is 2xx
         setMessage(data.message || `"${speechName}" uploaded successfully!`);
-        // TODO: If you have a list of speeches, you'd update it here with data.speechId
-        setSelectedFile(null); // Clear selected file
+        setSelectedFile(null);
         setFileName('');
+        if (onUploadSuccess) { // Call the success callback
+          onUploadSuccess();
+        }
       } else {
         // Handle errors from the backend (e.g., 400, 401, 500)
         setMessage(data.message || `Failed to upload speech: ${response.statusText}`);
