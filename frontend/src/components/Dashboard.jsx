@@ -1,12 +1,14 @@
 // src/components/Dashboard.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import SpeechUploadForm from './SpeechUploadForm';
+import SpeechList from './SpeechList';
 
 const Dashboard = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const [refreshSpeeches, setRefreshSpeeches] = useState(0); // State to trigger SpeechList refresh
 
   const handleLogout = async () => {
     try {
@@ -29,7 +31,7 @@ const Dashboard = () => {
       {/* This is where your list of speeches will eventually appear */}
       <div style={{ marginTop: '30px' }}>
         <h3>Your Speeches</h3>
-        <p>No speeches uploaded yet. Upload one above!</p>
+         <SpeechList onSpeechUploaded={refreshSpeeches} /> {/* Pass the state as a prop */}
       </div>
     </div>
   );
