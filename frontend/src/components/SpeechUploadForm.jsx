@@ -49,41 +49,74 @@ const SpeechUploadForm = () => {
     }
 
     setIsLoading(true);
-    setMessage('');
+  setMessage('');
 
-    const reader = new FileReader();
+  const reader = new FileReader();
 
-    reader.onload = async (e) => {
-      const fileContent = e.target.result;
-      const speechName = fileName.replace(/\.txt$/, ''); // Derive name from filename
+  reader.onload = async (e) => {
+    const fileContent = e.target.result;
+    const speechName = fileName.replace(/\.txt$/, ''); // Derive name from filename
 
-      // --- Send to backend (placeholder for now) ---
-      try {
-        // Placeholder: In a real scenario, you'd send this to your Cloud Function
-        console.log('Simulating upload...');
-        console.log('Speech Name:', speechName);
-        console.log('Speech Content (first 100 chars):', fileContent.substring(0, 100) + '...');
+    // --- Send to backend (REAL IMPLEMENTATION) ---
+    try {
+      // Get the user's ID token for authentication
+      const idToken = await currentUser.getIdToken();
 
-        // For now, let's pretend it was successful after a delay
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
-        setMessage(`"${speechName}" uploaded successfully! (Simulated)`);
-        setSelectedFile(null); // Clear selected file after 'upload'
+      // Replace with your actual Cloud Function URL base.
+      // When deployed: It will be something like https://REGION-YOUR_PROJECT_ID.cloudfunctions.net/api
+      // When using local emulators: http://localhost:5001/YOUR_PROJECT_ID/REGION/api
+      // You need to set this based on whether you are running emulators or deployed.
+      // For local testing, use the emulator URL.
+      // For deployed, use the actual Cloud Function URL.
+
+      // Using Vite's env vars to switch between local emulator and deployed URL
+      // You might need to add VITE_CLOUD_FUNCTION_URL to your frontend/.env
+      // and set it to your emulator URL for local testing.
+      // Example: VITE_CLOUD_FUNCTION_URL="http://localhost:5001/trippingly-on-the-tongue/us-central1/api"
+      // Replace YOUR_PROJECT_ID and REGION as appropriate.
+      const cloudFunctionBaseUrl = import.meta.env.VITE_CLOUD_FUNCTION_URL || 'http://localhost:5001/YOUR_PROJECT_ID/us-central1/api'; // Fallback for local
+      // TODO: Replace YOUR_PROJECT_ID and REGION with actual values (e.g. trippingly-on-the-tongue and us-central1)
+      const uploadUrl = `${cloudFunctionBaseUrl}/uploadSpeech`;
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}` // Send the ID token for backend authentication
+        },
+        body: JSON.stringify({
+          speechName: speechName,
+          fileContent: fileContent,
+        }),
+      });
+
+      const data = await response.json(); // Assuming your backend sends JSON response
+
+      if (response.ok) { // Check if the response status is 2xx
+        setMessage(data.message || `"${speechName}" uploaded successfully!`);
+        // TODO: If you have a list of speeches, you'd update it here with data.speechId
+        setSelectedFile(null); // Clear selected file
         setFileName('');
-      } catch (error) {
-        setMessage('Error during upload simulation. Check console.');
-        console.error('Upload simulation error:', error);
-      } finally {
-        setIsLoading(false);
+      } else {
+        // Handle errors from the backend (e.g., 400, 401, 500)
+        setMessage(data.message || `Failed to upload speech: ${response.statusText}`);
+        console.error('Backend error:', data);
       }
-    };
-
-    reader.onerror = () => {
-      setMessage('Error reading file.');
+    } catch (error) {
+      setMessage('An unexpected error occurred during upload. Check console.');
+      console.error('Frontend upload error:', error);
+    } finally {
       setIsLoading(false);
-    };
-
-    reader.readAsText(selectedFile); // Read the file as plain text
+    }
   };
+
+  reader.onerror = () => {
+    setMessage('Error reading file.');
+    setIsLoading(false);
+  };
+
+  reader.readAsText(selectedFile);
+};
 
   return (
     <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '8px', marginTop: '20px' }}>
