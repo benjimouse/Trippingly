@@ -114,3 +114,45 @@ app.post("/uploadSpeech", authenticate, async (req, res) => {
 
 // Expose the Express app as a Cloud Function
 exports.api = onRequest(app);
+
+app.get("/getSpeeches", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  logger.info(`Fetching speeches for user: ${userId}`, {structuredData: true});
+
+  try {
+    // Get a reference to the user's speeches subcollection
+    const speechesRef = db.collection("users").doc(userId).collection("speeches");
+
+    // Fetch documents, ordered by creation time (newest first)
+    const snapshot = await speechesRef.orderBy("createdAt", "desc").get();
+
+    if (snapshot.empty) {
+      logger.info(`No speeches found for user: ${userId}`);
+      return res.status(200).json({message: "No speeches found.", speeches: []});
+    }
+
+    // Map documents to an array of speech objects
+    const speeches = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      speeches.push({
+        id: doc.id,
+        name: data.name,
+        // You might want to truncate content if displaying a list,
+        // or only fetch content when the user views the full speech.
+        // For now, let's include full content for simplicity, but be mindful of data size.
+        content: data.content,
+        createdAt: data.createdAt ? data.createdAt.toDate() : null, // Convert Firestore Timestamp to JS Date
+      });
+    });
+
+    logger.info(`Found ${speeches.length} speeches for user: ${userId}`);
+    res.status(200).json({message: "Speeches fetched successfully.", speeches: speeches});
+  } catch (error) {
+    logger.error("Error fetching speeches from Firestore:", error);
+    res.status(500).send("Failed to fetch speeches. Please try again.");
+  }
+});
+
+// Expose the Express app as a Cloud Function
+exports.api = onRequest(app);
