@@ -23,3 +23,9 @@ storage-debug.log
 # Exclude generated types if you use TypeScript and generate types
 # for Cloud Functions
 /backend/lib
+/backend/node_modules
+
+# New additions from your current status
+pglite-debug.log
+
+firestore-debug.log
