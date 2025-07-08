@@ -1,11 +1,12 @@
 // src/App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthContextProvider } from './context/AuthContext';
+import { AuthContextProvider, PrivateRoute } from './context/AuthContext';
 import Register from './components/Register';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute'; // Import ProtectedRoute
+import SpeechDetail from './components/SpeechDetail'; 
 
 function App() {
   return (
@@ -28,6 +29,15 @@ function App() {
               }
             />
 
+            <Route
+              path="/speeches/:speechId" // This defines a URL parameter named 'speechId'
+              element={
+                <PrivateRoute>
+                  <SpeechDetail />
+                </PrivateRoute>
+              }
+            />
+            
             {/* Default redirect for root path */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             {/* Or for a landing page if you prefer:

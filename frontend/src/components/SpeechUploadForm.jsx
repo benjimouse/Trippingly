@@ -95,7 +95,8 @@ const SpeechUploadForm = ({ onUploadSuccess }) => {
         setMessage(data.message || `"${speechName}" uploaded successfully!`);
         setSelectedFile(null);
         setFileName('');
-        if (onUploadSuccess) { // Call the success callback
+        if (onUploadSuccess) {
+          console.log('SpeechUploadForm: Calling onUploadSuccess callback.'); // ADD THIS LINE
           onUploadSuccess();
         }
       } else {

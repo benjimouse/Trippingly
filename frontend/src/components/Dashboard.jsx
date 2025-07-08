@@ -19,6 +19,15 @@ const Dashboard = () => {
       alert('Failed to log out!');
     }
   };
+    // This function is called by SpeechUploadForm after successful upload
+  const handleSpeechUploaded = () => {
+    setRefreshSpeeches(prev => {
+      const newRefreshValue = prev + 1;
+      console.log('Dashboard: refreshSpeeches updated to:', newRefreshValue); // ADD THIS LINE
+      return newRefreshValue;
+    });
+  };
+
 
   return (
     <div>
@@ -26,7 +35,7 @@ const Dashboard = () => {
       {currentUser && <p>Welcome, {currentUser.email}!</p>}
       <p>This is your Trippingly Dashboard. More features coming soon!</p>
       <button onClick={handleLogout}>Log Out</button>
-      <SpeechUploadForm />
+      <SpeechUploadForm onUploadSuccess={handleSpeechUploaded} />
 
       {/* This is where your list of speeches will eventually appear */}
       <div style={{ marginTop: '30px' }}>
