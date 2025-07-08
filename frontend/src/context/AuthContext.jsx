@@ -57,3 +57,18 @@ export const AuthContextProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+export const PrivateRoute = ({ children }) => {
+  const { currentUser, loading } = useAuth(); // Get currentUser and loading state
+
+  if (loading) {
+    return <p>Loading authentication...</p>; // Or a spinner/loading screen
+  }
+
+  // If there's no current user, redirect to the login page
+  if (!currentUser) {
+    return <Navigate to="/login" />;
+  }
+
+  // If there's a current user, render the children (the protected component)
+  return children;
+};
