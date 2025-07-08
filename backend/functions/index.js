@@ -154,5 +154,45 @@ app.get("/getSpeeches", authenticate, async (req, res) => {
   }
 });
 
+app.get('/getSpeech/:speechId', authenticate, async (req, res) => {
+    const userId = req.user.uid;
+    const speechId = req.params.speechId; // Get speechId from URL parameters
+    logger.info(`Fetching speech ${speechId} for user: ${userId}`, { structuredData: true });
+
+    try {
+        // Get a reference to the specific speech document
+        const speechDocRef = db.collection('users').doc(userId).collection('speeches').doc(speechId);
+        const speechDoc = await speechDocRef.get();
+
+        if (!speechDoc.exists) {
+            logger.info(`Speech ${speechId} not found for user ${userId}`);
+            return res.status(404).json({ message: 'Speech not found.' });
+        }
+
+        const speechData = speechDoc.data();
+
+        // IMPORTANT: Ensure the retrieved speech belongs to the authenticated user.
+        // This is already implicitly handled by the path db.collection('users').doc(userId),
+        // but explicitly checking userId from doc.data() is a good sanity check
+        // if you ever change your data model. For now, it's redundant but safe.
+        if (speechData.userId && speechData.userId !== userId) {
+             logger.warn(`User ${userId} attempted to access speech ${speechId} belonging to ${speechData.userId}`);
+             return res.status(403).json({ message: 'Access denied.' });
+        }
+
+        logger.info(`Successfully fetched speech ${speechId} for user ${userId}`);
+        res.status(200).json({
+            id: speechDoc.id,
+            name: speechData.name,
+            content: speechData.content,
+            createdAt: speechData.createdAt ? speechData.createdAt.toDate() : null // Convert Timestamp to JS Date
+        });
+
+    } catch (error) {
+        logger.error(`Error fetching speech ${speechId} for user ${userId}:`, error);
+        res.status(500).send('Failed to fetch speech details. Please try again.');
+    }
+});
+
 // Expose the Express app as a Cloud Function
 exports.api = onRequest(app);

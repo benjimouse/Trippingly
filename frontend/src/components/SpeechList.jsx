@@ -1,6 +1,7 @@
 // src/components/SpeechList.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom'; 
 
 const SpeechList = ({ onSpeechUploaded }) => {
   const { currentUser } = useAuth();
@@ -16,7 +17,8 @@ const SpeechList = ({ onSpeechUploaded }) => {
       setLoading(false);
       return;
     }
-
+    
+    console.log('SpeechList: fetchSpeeches function is running. Current onSpeechUploaded prop:', onSpeechUploaded);
     setLoading(true);
     setError('');
 
@@ -32,6 +34,7 @@ const SpeechList = ({ onSpeechUploaded }) => {
       const data = await response.json();
 
       if (response.ok) {
+        console.log('SpeechList: Fetched speeches successfully.', data.speeches);
         setSpeeches(data.speeches);
       } else {
         setError(data.message || 'Failed to fetch speeches.');
@@ -46,6 +49,7 @@ const SpeechList = ({ onSpeechUploaded }) => {
   }, [currentUser, cloudFunctionBaseUrl]);
 
   useEffect(() => {
+    console.log('SpeechList: useEffect triggered. onSpeechUploaded value:', onSpeechUploaded); 
     fetchSpeeches();
   }, [fetchSpeeches, onSpeechUploaded]); // Re-fetch when onSpeechUploaded changes (triggered by SpeechUploadForm)
 
@@ -68,15 +72,18 @@ const SpeechList = ({ onSpeechUploaded }) => {
   return (
     <div>
       {speeches.map(speech => (
-        <div key={speech.id} style={{ border: '1px solid #eee', padding: '10px', margin: '10px 0', borderRadius: '4px' }}>
+    // Link to the detail page using the speech ID
+    <Link key={speech.id} to={`/speeches/${speech.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+        <div style={{ border: '1px solid #eee', padding: '10px', margin: '10px 0', borderRadius: '4px', cursor: 'pointer', backgroundColor: 'white' }}>
           <h4>{speech.name}</h4>
           <p style={{ fontSize: '0.9em', color: '#666' }}>
             Uploaded: {speech.createdAt ? new Date(speech.createdAt).toLocaleString() : 'N/A'}
           </p>
-          {/* For now, display truncated content; later, this could be a "View" button */}
+          {/* Still showing truncated content in the list view */}
           <p>{speech.content.substring(0, 150)}{speech.content.length > 150 ? '...' : ''}</p>
         </div>
-      ))}
+    </Link>
+))}
     </div>
   );
 };
