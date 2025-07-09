@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import Login from './Login';
-import { AuthContext } from '../context/AuthContext'; // We'll mock this
+import Login from '@components/Login';
+import { AuthContext } from '@context/AuthContext'; // We'll mock this
 import { BrowserRouter as Router } from 'react-router-dom'; // Needed for Link/Navigate
 
 // Mock AuthContext for testing purposes
