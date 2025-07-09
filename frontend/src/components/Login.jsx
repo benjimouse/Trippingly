@@ -33,19 +33,23 @@ const Login = () => {
       {error && <p style={{ color: 'red' }}>{error}</p>}
       <form onSubmit={handleSubmit}>
         <div>
-          <label>Email:</label>
+          <label htmlFor="emailInput">Email:</label>
           <input
             type="email"
+            id="emailInput"
+            placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
         </div>
         <div>
-          <label>Password:</label>
+          <label htmlFor="passwordInput">Password:</label>
           <input
             type="password"
             value={password}
+            id="passwordInput"
+            placeholder="Enter your password"
             onChange={(e) => setPassword(e.target.value)}
             required
           />
