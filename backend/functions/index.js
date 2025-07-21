@@ -191,8 +191,3 @@ app.get('/getSpeech/:speechId', authenticate, async (req, res) => {
     } catch (error) {
         logger.error(`Error fetching speech ${speechId} for user ${userId}:`, error);
         res.status(500).send('Failed to fetch speech details. Please try again.');
-    }
-});
-
-// Expose the Express app as a Cloud Function
-exports.api = onRequest(app);
