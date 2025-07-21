@@ -5,7 +5,6 @@ import { AuthContextProvider, PrivateRoute } from './context/AuthContext';
 import Register from './components/Register';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import ProtectedRoute from './components/ProtectedRoute'; // Import ProtectedRoute
 import SpeechDetail from './components/SpeechDetail'; 
 
 function App() {
@@ -23,9 +22,9 @@ function App() {
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <PrivateRoute>
                   <Dashboard />
-                </ProtectedRoute>
+                </PrivateRoute>
               }
             />
 
