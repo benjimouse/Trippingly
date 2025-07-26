@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom';
-import { TextEncoder, TextDecoder } from 'text-encoding';
-global.TextEncoder = TextEncoder;
-global.TextDecoder = TextDecoder;
+if (typeof global.TextEncoder === 'undefined') {
+    const { TextEncoder, TextDecoder } = require('util');
+  // In newer Node.js, TextEncoder and TextDecoder are globally available,
+  // but JSDOM might need them explicitly set on its global scope.
+  global.TextEncoder = TextEncoder;
+  global.TextDecoder = TextDecoder;
+}
