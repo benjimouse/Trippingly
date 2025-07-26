@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom'; 
 
-const SpeechList = ({ onSpeechUploaded }) => {
+const SpeechList = () => {
   const { currentUser } = useAuth();
   const [speeches, setSpeeches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,7 +18,6 @@ const SpeechList = ({ onSpeechUploaded }) => {
       return;
     }
     
-    console.log('SpeechList: fetchSpeeches function is running. Current onSpeechUploaded prop:', onSpeechUploaded);
     setLoading(true);
     setError('');
 
@@ -49,9 +48,8 @@ const SpeechList = ({ onSpeechUploaded }) => {
   }, [currentUser, cloudFunctionBaseUrl]);
 
   useEffect(() => {
-    console.log('SpeechList: useEffect triggered. onSpeechUploaded value:', onSpeechUploaded); 
     fetchSpeeches();
-  }, [fetchSpeeches, onSpeechUploaded]); // Re-fetch when onSpeechUploaded changes (triggered by SpeechUploadForm)
+  }, [fetchSpeeches]);
 
   if (loading) {
     return <p>Loading your speeches...</p>;

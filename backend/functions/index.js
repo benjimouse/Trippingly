@@ -99,11 +99,11 @@ app.post("/uploadSpeech", authenticate, async (req, res) => {
       updatedAt: FieldValue.serverTimestamp(), // Use the constant you defined
     });
 
-    logger.info(`Speech "${speechName}" uploaded by ${userId} with ID: ${speechRef.id}`, {
+    logger.info(`Speech "'${speechName}'" uploaded by ${userId} with ID: ${speechRef.id}`, {
       structuredData: true,
     });
     res.status(200).json({
-      message: `Speech "${speechName}" uploaded successfully!`,
+      message: `Speech "'${speechName}'" uploaded successfully!`,
       speechId: speechRef.id,
     });
   } catch (error) {
@@ -111,9 +111,6 @@ app.post("/uploadSpeech", authenticate, async (req, res) => {
     res.status(500).send("Failed to upload speech. Please try again.");
   }
 });
-
-// Expose the Express app as a Cloud Function
-exports.api = onRequest(app);
 
 app.get("/getSpeeches", authenticate, async (req, res) => {
   const userId = req.user.uid;
@@ -191,6 +188,23 @@ app.get('/getSpeech/:speechId', authenticate, async (req, res) => {
     } catch (error) {
         logger.error(`Error fetching speech ${speechId} for user ${userId}:`, error);
         res.status(500).send('Failed to fetch speech details. Please try again.');
+    }
+});
+
+app.delete('/deleteSpeech/:speechId', authenticate, async (req, res) => {
+    const userId = req.user.uid;
+    const speechId = req.params.speechId;
+    logger.info(`Deleting speech ${speechId} for user: ${userId}`, { structuredData: true });
+
+    try {
+        const speechDocRef = db.collection('users').doc(userId).collection('speeches').doc(speechId);
+        await speechDocRef.delete();
+
+        logger.info(`Successfully deleted speech ${speechId} for user ${userId}`);
+        res.status(200).json({ message: 'Speech deleted successfully.' });
+    } catch (error) {
+        logger.error(`Error deleting speech ${speechId} for user ${userId}:`, error);
+        res.status(500).send('Failed to delete speech. Please try again.');
     }
 });
 

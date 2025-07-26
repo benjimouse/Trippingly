@@ -1,46 +1,44 @@
 // src/components/Dashboard.jsx
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import SpeechUploadForm from './SpeechUploadForm';
 import SpeechList from './SpeechList';
+import '../App.css'; // Import the new CSS
 
 const Dashboard = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
-  const [refreshSpeeches, setRefreshSpeeches] = useState(0); // State to trigger SpeechList refresh
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/login'); // Redirect to login after logout
+      navigate('/login');
     } catch (error) {
       console.error('Failed to log out:', error);
       alert('Failed to log out!');
     }
   };
-    // This function is called by SpeechUploadForm after successful upload
-  const handleSpeechUploaded = () => {
-    setRefreshSpeeches(prev => {
-      const newRefreshValue = prev + 1;
-      console.log('Dashboard: refreshSpeeches updated to:', newRefreshValue); // ADD THIS LINE
-      return newRefreshValue;
-    });
-  };
 
+  const handleSpeechUploaded = useCallback(() => {
+    setRefreshKey(oldKey => oldKey + 1);
+  }, []);
 
   return (
-    <div>
-      <h2>Dashboard</h2>
-      {currentUser && <p>Welcome, {currentUser.email}!</p>}
+    <div className="container">
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2>Dashboard</h2>
+        <div>
+          {currentUser && <span>Welcome, {currentUser.email}</span>}
+          <button onClick={handleLogout} style={{ marginLeft: '10px' }}>Log Out</button>
+        </div>
+      </header>
       <p>This is your Trippingly Dashboard. More features coming soon!</p>
-      <button onClick={handleLogout}>Log Out</button>
       <SpeechUploadForm onUploadSuccess={handleSpeechUploaded} />
-
-      {/* This is where your list of speeches will eventually appear */}
       <div style={{ marginTop: '30px' }}>
         <h3>Your Speeches</h3>
-         <SpeechList onSpeechUploaded={refreshSpeeches} /> {/* Pass the state as a prop */}
+        <SpeechList key={refreshKey} />
       </div>
     </div>
   );
