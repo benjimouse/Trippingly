@@ -1,0 +1,21 @@
+{
+  "name": "trippingly",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend/functions"
+  ],
+  "scripts": {
+    "start:dev": "concurrently \"npm run dev --workspace=frontend\" \"npm run serve --workspace=functions\"",
+    "start:prod": "npm run build --workspace=frontend && npm run deploy --workspace=functions"
+  },
+  "dependencies": {
+    "firebase": "^12.0.0",
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.4.0",
+    "firebase-functions-test": "^3.4.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}

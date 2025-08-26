@@ -72,9 +72,8 @@ const SpeechUploadForm = ({ onUploadSuccess }) => {
           }),
         });
 
-        const data = await response.json();
-
         if (response.ok) {
+          const data = await response.json();
           setMessage(data.message || `"${speechName}" uploaded successfully!`);
           setSelectedFile(null);
           setFileName('');
@@ -82,8 +81,9 @@ const SpeechUploadForm = ({ onUploadSuccess }) => {
             onUploadSuccess();
           }
         } else {
-          setMessage(data.message || `Failed to upload speech: ${response.statusText}`);
-          console.error('Backend error:', data);
+          const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }));
+          setMessage(errorData.message || `Failed to upload speech: ${response.statusText}`);
+          console.error('Backend error:', errorData);
         }
       } catch (error) {
         setMessage('An unexpected error occurred during upload. Check console.');
