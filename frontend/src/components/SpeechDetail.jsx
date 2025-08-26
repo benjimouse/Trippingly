@@ -35,13 +35,13 @@ const SpeechDetail = () => {
         }
       });
 
-      const data = await response.json();
-
       if (response.ok) {
+        const data = await response.json();
         setSpeech(data);
       } else {
-        setError(data.message || `Failed to fetch speech: ${response.statusText}`);
-        console.error('Error fetching speech:', data);
+        const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }));
+        setError(errorData.message || `Failed to fetch speech: ${response.statusText}`);
+        console.error('Error fetching speech:', errorData);
       }
     } catch (err) {
       setError('An unexpected error occurred while fetching speech.');
