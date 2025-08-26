@@ -30,14 +30,14 @@ const SpeechList = () => {
         }
       });
 
-      const data = await response.json();
-
       if (response.ok) {
+        const data = await response.json();
         console.log('SpeechList: Fetched speeches successfully.', data.speeches);
         setSpeeches(data.speeches);
       } else {
-        setError(data.message || 'Failed to fetch speeches.');
-        console.error('Error fetching speeches:', data);
+        const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }));
+        setError(errorData.message || 'Failed to fetch speeches.');
+        console.error('Error fetching speeches:', errorData);
       }
     } catch (err) {
       setError('An error occurred while fetching speeches.');
