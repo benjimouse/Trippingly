@@ -5,7 +5,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../App.css';
 import { VITE_CLOUD_FUNCTION_URL } from '../utils/env';
-
+import Picker from '@emoji-mart/react';
+import emojiData from '@emoji-mart/data';
 
 const SpeechDetail = () => {
   const { speechId } = useParams();
@@ -18,6 +19,8 @@ const SpeechDetail = () => {
   const [selection, setSelection] = useState(null); // {start, end, text}
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiToReplace, setEmojiToReplace] = useState(null);
+  const [cleanSpeech, setCleanSpeech] = useState('');
+  const [toast, setToast] = useState(null);
 
   // For test environments only: allow direct selection state setting
   useEffect(() => {
@@ -50,6 +53,7 @@ const SpeechDetail = () => {
       if (response.ok) {
         const data = await response.json();
         setSpeech(data);
+        setCleanSpeech(data.content); // Save original speech text
       } else {
         const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }));
         setError(errorData.message || `Failed to fetch speech: ${response.statusText}`);
@@ -64,6 +68,13 @@ const SpeechDetail = () => {
   useEffect(() => {
     fetchSpeech();
   }, [fetchSpeech]);
+
+  // Auto-dismiss toast (placed here so hooks run in the same order every render)
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this speech?')) {
@@ -116,7 +127,6 @@ const SpeechDetail = () => {
       </div>
     );
   }
-
   const handleMouseUp = () => {
     const contentEl = document.getElementById('speech-content');
     const selectionObj = window.getSelection();
@@ -143,14 +153,73 @@ const SpeechDetail = () => {
     setSelection({ start, end, text: selectedText });
   };
 
-  const emojiList = ['😀', '😂', '😍', '👍', '🎉', '😢', '😮', '😡', '🙏', '🔥'];
-
   const handleEmojiPick = (emoji) => {
+    if (!selection || !speech) return;
+    const { start, end, text } = selection;
+    // Replace highlighted text with emoji
+    const newContent =
+      speech.content.substring(0, start) +
+      emoji +
+      speech.content.substring(end);
+    setSpeech({ ...speech, content: newContent });
     setEmojiToReplace(emoji);
     setShowEmojiPicker(false);
     setSelection(null);
+    // Save association to backend
+    saveEmojiAssociation({
+      speechId,
+      originalText: text,
+      emoji,
+      position: start,
+      cleanSpeech,
+    });
   };
 
+  // Function to send association to backend
+  const saveEmojiAssociation = async ({ speechId, originalText, emoji, position, cleanSpeech }) => {
+    try {
+      const idToken = await currentUser.getIdToken();
+      await fetch(`${cloudFunctionBaseUrl}/saveEmojiAssociation`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          speechId,
+          originalText,
+          emoji,
+          position,
+          cleanSpeech,
+        }),
+      });
+    } catch (err) {
+      // Optionally handle error
+      console.error('Failed to save emoji association:', err);
+      setToast('Failed to save emoji association');
+    }
+
+      // Check response in case server returned non-OK (fetch above may not throw)
+      try {
+        const idToken2 = await currentUser.getIdToken();
+        const resp = await fetch(`${cloudFunctionBaseUrl}/saveEmojiAssociation`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken2}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ speechId, originalText, emoji, position, cleanSpeech }),
+        });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        console.error('Failed to save emoji association:', errData);
+        setToast(errData.message || 'Failed to save emoji association');
+      }
+      } catch (err) {
+        console.error('Failed to save emoji association:', err);
+      setToast('Failed to save emoji association');
+      }
+  };
   return (
     <div className="container">
       <h2>Speech: {speech.name}</h2>
@@ -160,13 +229,13 @@ const SpeechDetail = () => {
         style={{ border: '1px solid #ccc', padding: '20px', marginTop: '20px', whiteSpace: 'pre-wrap', backgroundColor: '#f9f9f9', borderRadius: '8px', position: 'relative' }}
         onMouseUp={handleMouseUp}
       >
-        <p data-testid="speech-content">{speech.content}</p>
+        <span data-testid="speech-content">{speech.content}</span>
         {selection && (
           <button
-            style={{ position: 'absolute', top: 5, right: 5, zIndex: 2, background: '#ffd700', borderRadius: '6px', padding: '6px 12px', border: 'none', cursor: 'pointer' }}
+            style={{ position: 'absolute', top: 5, right: 5, zIndex: 2, background: 'linear-gradient(90deg, #007bff 0%, #00c6ff 100%)', color: '#fff', borderRadius: '6px', padding: '6px 16px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
             onClick={() => setShowEmojiPicker(true)}
           >
-            Replace with Emoji
+            😊 Replace with Emoji
           </button>
         )}
       </div>
@@ -174,11 +243,15 @@ const SpeechDetail = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
             <h4>Pick an Emoji</h4>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '12px' }}>
-              {emojiList.map((emoji) => (
-                <button key={emoji} style={{ fontSize: '2rem', padding: '8px', border: 'none', background: 'none', cursor: 'pointer' }} onClick={() => handleEmojiPick(emoji)}>{emoji}</button>
-              ))}
-            </div>
+            <Picker
+              data={emojiData}
+              onEmojiSelect={(emoji) => handleEmojiPick(emoji.native)}
+              theme="light"
+              perLine={8}
+              previewPosition="none"
+              emojiSize={20}
+              style={{ width: '100%' }}
+            />
             <button style={{ marginTop: '18px' }} onClick={() => setShowEmojiPicker(false)}>Cancel</button>
           </div>
         </div>
@@ -186,9 +259,13 @@ const SpeechDetail = () => {
       <p style={{ fontSize: '0.8em', color: '#888', marginTop: '10px' }}>
         Uploaded on: {speech.createdAt ? new Date(speech.createdAt).toLocaleString() : 'N/A'}
       </p>
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 20, right: 20, background: '#333', color: '#fff', padding: '12px 16px', borderRadius: 8, boxShadow: '0 2px 10px rgba(0,0,0,0.2)', zIndex: 1000 }} role="status">
+          {toast}
+        </div>
+      )}
       <button onClick={handleDelete} style={{ backgroundColor: '#d9534f', marginTop: '10px' }}>Delete Speech</button>
     </div>
   );
-};
-
+}
 export default SpeechDetail;

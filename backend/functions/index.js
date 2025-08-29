@@ -56,6 +56,51 @@ const authenticate = async (req, res, next) => {
 };
 
 // --- API Endpoints ---
+// Save emoji association and clean speech text for a speech
+app.post("/saveEmojiAssociation", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  const { speechId, originalText, emoji, position, cleanSpeech } = req.body;
+
+  if (!speechId || typeof speechId !== "string") {
+    logger.warn("Missing or invalid speechId in emoji association.");
+    return res.status(400).send("speechId is required.");
+  }
+  if (!originalText || typeof originalText !== "string") {
+    logger.warn("Missing or invalid originalText in emoji association.");
+    return res.status(400).send("originalText is required.");
+  }
+  if (!emoji || typeof emoji !== "string") {
+    logger.warn("Missing or invalid emoji in emoji association.");
+    return res.status(400).send("emoji is required.");
+  }
+  if (typeof position !== "number") {
+    logger.warn("Missing or invalid position in emoji association.");
+    return res.status(400).send("position is required.");
+  }
+  if (!cleanSpeech || typeof cleanSpeech !== "string") {
+    logger.warn("Missing or invalid cleanSpeech in emoji association.");
+    return res.status(400).send("cleanSpeech is required.");
+  }
+
+  try {
+    // Reference to the speech document
+    const speechRef = db.collection("users").doc(userId).collection("speeches").doc(speechId);
+    // Save association in a subcollection 'emojiAssociations'
+    await speechRef.collection("emojiAssociations").add({
+      originalText,
+      emoji,
+      position,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    // Optionally, preserve the clean speech text in the main document
+    await speechRef.set({ cleanSpeech }, { merge: true });
+    logger.info(`Saved emoji association for speech ${speechId} by user ${userId}`);
+    res.status(200).json({ message: "Emoji association saved successfully." });
+  } catch (error) {
+    logger.error("Error saving emoji association:", error);
+    res.status(500).send("Failed to save emoji association.");
+  }
+});
 
 // Root endpoint (your existing backend message)
 app.get("/", (req, res) => {
