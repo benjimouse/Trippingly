@@ -48,7 +48,7 @@ jest.mock('../../../src/context/AuthContext', () => {
 
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import SpeechDetail from '../../../src/components/SpeechDetail';
 import { waitFor } from '@testing-library/react';
 
@@ -127,6 +127,8 @@ describe('SpeechDetail', () => {
     expect(payload.emoji).toBe('😀');
     expect(payload.position).toBe(0);
     expect(payload.cleanSpeech).toBe(mockSpeech.content);
+  // New: ensure assocId was included for idempotent saves
+  expect(typeof payload.assocId).toBe('string');
   });
 
   it('handles saveEmojiAssociation failure gracefully', async () => {

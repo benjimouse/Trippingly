@@ -1,6 +1,6 @@
 // src/components/SpeechDetail.jsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../App.css';
@@ -23,6 +23,16 @@ const SpeechDetail = () => {
   const [toast, setToast] = useState(null);
   const [associations, setAssociations] = useState([]);
   const [toggles, setToggles] = useState({});
+  const modalRef = useRef(null);
+  const prevFocusRef = useRef(null);
+
+  // Generate a stable-ish id for new associations. Prefer crypto.randomUUID when available.
+  const genAssocId = () => {
+    try {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    } catch (e) {}
+    return `assoc-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+  };
 
   // For test environments only: allow direct selection state setting
   useEffect(() => {
@@ -61,8 +71,21 @@ const SpeechDetail = () => {
           const raw = localStorage.getItem(`speech_assoc:${speechId}`);
           if (raw) {
             const parsed = JSON.parse(raw);
-            setAssociations(parsed.associations || []);
-            setToggles(parsed.toggles || {});
+            // Ensure each association has an id (migrate older saved data keyed by position)
+            const nextAssociations = (parsed.associations || []).map(a => ({
+              ...a,
+              id: a.id || String(a.position || genAssocId()),
+            })).sort((a, b) => a.position - b.position);
+            // Normalize toggles: prefer id keys, but fall back to position-based keys from old data
+            const rawToggles = parsed.toggles || {};
+            const nextToggles = {};
+            for (const a of nextAssociations) {
+              if (rawToggles.hasOwnProperty(a.id)) nextToggles[a.id] = rawToggles[a.id];
+              else if (rawToggles.hasOwnProperty(String(a.position))) nextToggles[a.id] = rawToggles[String(a.position)];
+              else nextToggles[a.id] = false;
+            }
+            setAssociations(nextAssociations);
+            setToggles(nextToggles);
           }
         } catch (e) {
           // ignore localStorage parse errors
@@ -88,6 +111,24 @@ const SpeechDetail = () => {
     const timer = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  // Manage focus for emoji picker modal: save/restore focus when it opens/closes
+  useEffect(() => {
+    if (showEmojiPicker) {
+      prevFocusRef.current = document.activeElement;
+      setTimeout(() => {
+        const modal = modalRef.current;
+        if (modal) {
+          const first = modal.querySelector('button');
+          if (first) first.focus();
+        }
+      }, 0);
+    } else {
+      try {
+        if (prevFocusRef.current && prevFocusRef.current.focus) prevFocusRef.current.focus();
+      } catch (e) {}
+    }
+  }, [showEmojiPicker]);
 
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this speech?')) {
@@ -171,25 +212,25 @@ const SpeechDetail = () => {
     if (!selection || !speech) return;
     const { start, end, text } = selection;
     // Replace highlighted text with emoji
-    // Update local associations (position is relative to cleanSpeech)
-    const assoc = { position: start, length: text.length, originalText: text, emoji };
+    // Create an association with a stable id and position relative to cleanSpeech
+    const assoc = { id: genAssocId(), position: start, length: text.length, originalText: text, emoji };
     const nextAssociations = [...associations, assoc].sort((a, b) => a.position - b.position);
     setAssociations(nextAssociations);
     // persist associations + toggles (default show emoji => false for showOriginal)
-    const nextToggles = { ...toggles, [assoc.position]: false };
+    const nextToggles = { ...toggles, [assoc.id]: false };
     setToggles(nextToggles);
     try {
       localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations: nextAssociations, toggles: nextToggles }));
     } catch (e) {
       // ignore
     }
-    // Rebuild displayed content from cleanSpeech + associations
+    // Rebuild displayed content from cleanSpeech + associations (use id-keyed toggles)
     const build = (clean, assocList, toggleMap) => {
       let out = '';
       let idx = 0;
       for (const a of assocList) {
         if (a.position > idx) out += clean.substring(idx, a.position);
-        out += (toggleMap[a.position] ? a.originalText : a.emoji);
+        out += (toggleMap[a.id] ? a.originalText : a.emoji);
         idx = a.position + a.length;
       }
       if (idx < clean.length) out += clean.substring(idx);
@@ -203,6 +244,7 @@ const SpeechDetail = () => {
     // Save association to backend
     saveEmojiAssociation({
       speechId,
+      assocId: assoc.id,
       originalText: text,
       emoji,
       position: start,
@@ -210,22 +252,40 @@ const SpeechDetail = () => {
     });
   };
 
-  // Toggle an association's display between emoji and original text
-  const toggleAssociation = (position) => {
-    const next = { ...toggles, [position]: !toggles[position] };
+  
+
+  // Toggle an association's display between emoji and original text (use assoc id)
+  const toggleAssociation = (assocId) => {
+    const next = { ...toggles, [assocId]: !toggles[assocId] };
     setToggles(next);
     try { localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations, toggles: next })); } catch (e) {}
+    // Persist toggle state server-side for cross-device sync
+    (async () => {
+      try {
+        const idToken = await currentUser.getIdToken();
+        await fetch(`${cloudFunctionBaseUrl}/updateAssociationToggle`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ speechId, assocId, showOriginal: !!next[assocId] }),
+        });
+      } catch (e) {
+        // ignore network errors for now
+      }
+    })();
     // rebuild displayed content
     const build = (clean, assocList, toggleMap) => {
-      let segments = [];
+      let out = '';
       let idx = 0;
       for (const a of assocList) {
-        if (a.position > idx) segments.push({ type: 'text', text: clean.substring(idx, a.position) });
-        segments.push({ type: 'assoc', key: a.position, text: (toggleMap[a.position] ? a.originalText : a.emoji) });
+        if (a.position > idx) out += clean.substring(idx, a.position);
+        out += (toggleMap[a.id] ? a.originalText : a.emoji);
         idx = a.position + a.length;
       }
-      if (idx < clean.length) segments.push({ type: 'text', text: clean.substring(idx) });
-      return segments.map(s => s.text).join('');
+      if (idx < clean.length) out += clean.substring(idx);
+      return out;
     };
     const newContent = build(cleanSpeech, associations, next);
     setSpeech({ ...speech, content: newContent });
@@ -238,7 +298,7 @@ const SpeechDetail = () => {
     let idx = 0;
     for (const a of associations) {
       if (a.position > idx) segs.push({ type: 'text', text: cleanSpeech.substring(idx, a.position) });
-      segs.push({ type: 'assoc', key: a.position, assoc: a, text: (toggles[a.position] ? a.originalText : a.emoji) });
+  segs.push({ type: 'assoc', key: a.id, assoc: a, text: (toggles[a.id] ? a.originalText : a.emoji) });
       idx = a.position + a.length;
     }
     if (idx < cleanSpeech.length) segs.push({ type: 'text', text: cleanSpeech.substring(idx) });
@@ -246,49 +306,26 @@ const SpeechDetail = () => {
   };
 
   // Function to send association to backend
-  const saveEmojiAssociation = async ({ speechId, originalText, emoji, position, cleanSpeech }) => {
+  const saveEmojiAssociation = async ({ speechId, assocId, originalText, emoji, position, cleanSpeech }) => {
     try {
       const idToken = await currentUser.getIdToken();
-      await fetch(`${cloudFunctionBaseUrl}/saveEmojiAssociation`, {
+      const resp = await fetch(`${cloudFunctionBaseUrl}/saveEmojiAssociation`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          speechId,
-          originalText,
-          emoji,
-          position,
-          cleanSpeech,
-        }),
+        body: JSON.stringify({ speechId, assocId, originalText, emoji, position, cleanSpeech }),
       });
-    } catch (err) {
-      // Optionally handle error
-      console.error('Failed to save emoji association:', err);
-      setToast('Failed to save emoji association');
-    }
-
-      // Check response in case server returned non-OK (fetch above may not throw)
-      try {
-        const idToken2 = await currentUser.getIdToken();
-        const resp = await fetch(`${cloudFunctionBaseUrl}/saveEmojiAssociation`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${idToken2}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ speechId, originalText, emoji, position, cleanSpeech }),
-        });
       if (!resp.ok) {
         const errData = await resp.json().catch(() => ({}));
         console.error('Failed to save emoji association:', errData);
         setToast(errData.message || 'Failed to save emoji association');
       }
-      } catch (err) {
-        console.error('Failed to save emoji association:', err);
+    } catch (err) {
+      console.error('Failed to save emoji association:', err);
       setToast('Failed to save emoji association');
-      }
+    }
   };
   return (
     <div className="container">
@@ -306,8 +343,10 @@ const SpeechDetail = () => {
               <button
                 key={`a-${s.key}`}
                 onClick={() => toggleAssociation(s.key)}
-                style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
-                aria-label={`toggle-${s.key}`}
+                className="assoc-button"
+                style={{ color: 'inherit', font: 'inherit' }}
+                aria-pressed={!!toggles[s.key]}
+                aria-label={toggles[s.key] ? `Show emoji for "${s.assoc.originalText}"` : `Show original text for "${s.assoc.originalText}"`}
               >
                 {s.text}
               </button>
@@ -324,7 +363,7 @@ const SpeechDetail = () => {
         )}
       </div>
       {showEmojiPicker && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+        <div role="dialog" aria-modal="true" ref={modalRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
             <h4>Pick an Emoji</h4>
             <Picker
