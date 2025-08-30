@@ -21,7 +21,6 @@ const mockSpeech = {
 let fetchCalls = [];
 globalThis.fetch = jest.fn((url, opts = {}) => {
   fetchCalls.push({ url, opts });
-  console.log('MOCK FETCH CALLED:', url);
   if (url.includes('getSpeech')) {
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockSpeech) });
   }
@@ -38,7 +37,7 @@ jest.mock('react-router-dom', () => ({
   useParams: () => ({ speechId: 'test-id' }),
   useNavigate: () => jest.fn(),
 }));
-const stableCurrentUser = { getIdToken: async () => 'token' };
+const _stableCurrentUser = { getIdToken: async () => 'token' };
 jest.mock('../../../src/context/AuthContext', () => {
   const mockCurrentUser = { getIdToken: async () => 'token' };
   return {
@@ -54,24 +53,24 @@ import { waitFor } from '@testing-library/react';
 
 describe('SpeechDetail', () => {
   beforeEach(() => {
-  fetch.mockClear();
-  fetchCalls = [];
+    fetch.mockClear();
+    fetchCalls = [];
   });
 
 
   it('renders speech content', async () => {
     render(<SpeechDetail />);
     // Wait for loading to disappear
-    await waitFor(() => expect(screen.queryByText('Loading speech details...')).not.toBeInTheDocument());
-    const contentEl = await screen.findByTestId('speech-content');
+  await waitFor(() => expect(screen.queryByText('Loading speech details...')).not.toBeInTheDocument());
+  const contentEl = await screen.findByTestId('speech-content');
     expect(contentEl.textContent).toContain('Hello world! This is a test.');
   });
 
 
   it('shows Replace with Emoji button on text selection', async () => {
     render(<SpeechDetail />);
-    await waitFor(() => expect(screen.queryByText('Loading speech details...')).not.toBeInTheDocument());
-    const contentEl = await screen.findByTestId('speech-content');
+  await waitFor(() => expect(screen.queryByText('Loading speech details...')).not.toBeInTheDocument());
+  await screen.findByTestId('speech-content');
     // Directly set selection state for test
     await act(async () => {
       window._setSpeechSelection({ start: 0, end: mockSpeech.content.length, text: mockSpeech.content });
@@ -83,7 +82,7 @@ describe('SpeechDetail', () => {
   it('opens emoji picker when button is clicked', async () => {
     render(<SpeechDetail />);
     await waitFor(() => expect(screen.queryByText('Loading speech details...')).not.toBeInTheDocument());
-    const contentEl = await screen.findByTestId('speech-content');
+    await screen.findByTestId('speech-content');
     await act(async () => {
       window._setSpeechSelection({ start: 0, end: mockSpeech.content.length, text: mockSpeech.content });
     });
@@ -96,7 +95,7 @@ describe('SpeechDetail', () => {
   it('clears selection after emoji pick', async () => {
     render(<SpeechDetail />);
     await waitFor(() => expect(screen.queryByText('Loading speech details...')).not.toBeInTheDocument());
-    const contentEl = await screen.findByTestId('speech-content');
+  await screen.findByTestId('speech-content');
     await act(async () => {
       window._setSpeechSelection({ start: 0, end: mockSpeech.content.length, text: mockSpeech.content });
     });
@@ -134,9 +133,9 @@ describe('SpeechDetail', () => {
   it('handles saveEmojiAssociation failure gracefully', async () => {
     // Make fetch return ok for getSpeech, but fail for saveEmojiAssociation
     const originalFetch = global.fetch;
-    let callCount = 0;
-    global.fetch = jest.fn((url, opts = {}) => {
-      callCount++;
+    let _callCount = 0;
+  global.fetch = jest.fn((url) => {
+      _callCount++;
       if (url.includes('getSpeech')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(mockSpeech) });
       }
@@ -158,9 +157,9 @@ describe('SpeechDetail', () => {
   // Click the emoji inside the opened picker modal
   fireEvent.click(within(screen.getByText('Pick an Emoji').parentElement).getByText('😀'));
 
-    // UI should still reflect the emoji replacement
-    const contentEl = await screen.findByTestId('speech-content');
-    expect(contentEl.textContent).toContain('😀');
+  // UI should still reflect the emoji replacement
+  const contentEl = await screen.findByTestId('speech-content');
+  expect(contentEl.textContent).toContain('😀');
 
     // save failure should cause console.error to be called inside saveEmojiAssociation catch
     await waitFor(() => expect(consoleErrorSpy).toHaveBeenCalled());
