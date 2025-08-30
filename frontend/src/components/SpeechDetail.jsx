@@ -21,6 +21,8 @@ const SpeechDetail = () => {
   const [emojiToReplace, setEmojiToReplace] = useState(null);
   const [cleanSpeech, setCleanSpeech] = useState('');
   const [toast, setToast] = useState(null);
+  const [associations, setAssociations] = useState([]);
+  const [toggles, setToggles] = useState({});
 
   // For test environments only: allow direct selection state setting
   useEffect(() => {
@@ -54,6 +56,17 @@ const SpeechDetail = () => {
         const data = await response.json();
         setSpeech(data);
         setCleanSpeech(data.content); // Save original speech text
+        // Load any locally persisted associations/toggles for this speech
+        try {
+          const raw = localStorage.getItem(`speech_assoc:${speechId}`);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            setAssociations(parsed.associations || []);
+            setToggles(parsed.toggles || {});
+          }
+        } catch (e) {
+          // ignore localStorage parse errors
+        }
       } else {
         const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }));
         setError(errorData.message || `Failed to fetch speech: ${response.statusText}`);
@@ -143,8 +156,9 @@ const SpeechDetail = () => {
       setSelection(null);
       return;
     }
-    const content = speech.content;
-    const start = content.indexOf(selectedText);
+  // Compute start relative to the original (clean) speech so positions remain stable
+  const content = cleanSpeech;
+  const start = content.indexOf(selectedText);
     if (start === -1) {
       setSelection(null);
       return;
@@ -157,10 +171,31 @@ const SpeechDetail = () => {
     if (!selection || !speech) return;
     const { start, end, text } = selection;
     // Replace highlighted text with emoji
-    const newContent =
-      speech.content.substring(0, start) +
-      emoji +
-      speech.content.substring(end);
+    // Update local associations (position is relative to cleanSpeech)
+    const assoc = { position: start, length: text.length, originalText: text, emoji };
+    const nextAssociations = [...associations, assoc].sort((a, b) => a.position - b.position);
+    setAssociations(nextAssociations);
+    // persist associations + toggles (default show emoji => false for showOriginal)
+    const nextToggles = { ...toggles, [assoc.position]: false };
+    setToggles(nextToggles);
+    try {
+      localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations: nextAssociations, toggles: nextToggles }));
+    } catch (e) {
+      // ignore
+    }
+    // Rebuild displayed content from cleanSpeech + associations
+    const build = (clean, assocList, toggleMap) => {
+      let out = '';
+      let idx = 0;
+      for (const a of assocList) {
+        if (a.position > idx) out += clean.substring(idx, a.position);
+        out += (toggleMap[a.position] ? a.originalText : a.emoji);
+        idx = a.position + a.length;
+      }
+      if (idx < clean.length) out += clean.substring(idx);
+      return out;
+    };
+    const newContent = build(cleanSpeech, nextAssociations, nextToggles);
     setSpeech({ ...speech, content: newContent });
     setEmojiToReplace(emoji);
     setShowEmojiPicker(false);
@@ -173,6 +208,41 @@ const SpeechDetail = () => {
       position: start,
       cleanSpeech,
     });
+  };
+
+  // Toggle an association's display between emoji and original text
+  const toggleAssociation = (position) => {
+    const next = { ...toggles, [position]: !toggles[position] };
+    setToggles(next);
+    try { localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations, toggles: next })); } catch (e) {}
+    // rebuild displayed content
+    const build = (clean, assocList, toggleMap) => {
+      let segments = [];
+      let idx = 0;
+      for (const a of assocList) {
+        if (a.position > idx) segments.push({ type: 'text', text: clean.substring(idx, a.position) });
+        segments.push({ type: 'assoc', key: a.position, text: (toggleMap[a.position] ? a.originalText : a.emoji) });
+        idx = a.position + a.length;
+      }
+      if (idx < clean.length) segments.push({ type: 'text', text: clean.substring(idx) });
+      return segments.map(s => s.text).join('');
+    };
+    const newContent = build(cleanSpeech, associations, next);
+    setSpeech({ ...speech, content: newContent });
+  };
+
+  // Helper to render segments (used in JSX)
+  const renderSegments = () => {
+    if (!cleanSpeech) return [ { type: 'text', text: speech.content } ];
+    const segs = [];
+    let idx = 0;
+    for (const a of associations) {
+      if (a.position > idx) segs.push({ type: 'text', text: cleanSpeech.substring(idx, a.position) });
+      segs.push({ type: 'assoc', key: a.position, assoc: a, text: (toggles[a.position] ? a.originalText : a.emoji) });
+      idx = a.position + a.length;
+    }
+    if (idx < cleanSpeech.length) segs.push({ type: 'text', text: cleanSpeech.substring(idx) });
+    return segs;
   };
 
   // Function to send association to backend
@@ -229,7 +299,16 @@ const SpeechDetail = () => {
         style={{ border: '1px solid #ccc', padding: '20px', marginTop: '20px', whiteSpace: 'pre-wrap', backgroundColor: '#f9f9f9', borderRadius: '8px', position: 'relative' }}
         onMouseUp={handleMouseUp}
       >
-        <span data-testid="speech-content">{speech.content}</span>
+        <span data-testid="speech-content">
+          {renderSegments().map((s, i) => {
+            if (s.type === 'text') return (<span key={`t-${i}`}>{s.text}</span>);
+            return (
+              <button key={`a-${s.key}`} onClick={() => toggleAssociation(s.key)} style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: 'pointer' }} aria-label={`toggle-${s.key}`}>
+                {s.text}
+              </button>
+            );
+          })}
+        </span>
         {selection && (
           <button
             style={{ position: 'absolute', top: 5, right: 5, zIndex: 2, background: 'linear-gradient(90deg, #007bff 0%, #00c6ff 100%)', color: '#fff', borderRadius: '6px', padding: '6px 16px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}

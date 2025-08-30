@@ -47,7 +47,7 @@ jest.mock('../../../src/context/AuthContext', () => {
 });
 
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { act } from 'react-dom/test-utils';
 import SpeechDetail from '../../../src/components/SpeechDetail';
 import { waitFor } from '@testing-library/react';
@@ -101,7 +101,8 @@ describe('SpeechDetail', () => {
       window._setSpeechSelection({ start: 0, end: mockSpeech.content.length, text: mockSpeech.content });
     });
   fireEvent.click(screen.getByText(/Replace with Emoji/));
-    fireEvent.click(screen.getByText('😀'));
+  // Click the emoji inside the opened picker modal
+  fireEvent.click(within(screen.getByText('Pick an Emoji').parentElement).getByText('😀'));
     expect(screen.queryByText('Replace with Emoji')).not.toBeInTheDocument();
   });
 
@@ -112,7 +113,8 @@ describe('SpeechDetail', () => {
       window._setSpeechSelection({ start: 0, end: mockSpeech.content.length, text: mockSpeech.content });
     });
     fireEvent.click(screen.getByText(/Replace with Emoji/));
-    fireEvent.click(screen.getByText('😀'));
+  // Click the emoji inside the opened picker modal
+  fireEvent.click(within(screen.getByText('Pick an Emoji').parentElement).getByText('😀'));
 
     // Wait for the saveEmojiAssociation fetch to be recorded
     await waitFor(() => expect(fetchCalls.find(c => c.url.includes('saveEmojiAssociation'))).toBeDefined());
@@ -151,7 +153,8 @@ describe('SpeechDetail', () => {
       window._setSpeechSelection({ start: 0, end: mockSpeech.content.length, text: mockSpeech.content });
     });
     fireEvent.click(screen.getByText(/Replace with Emoji/));
-    fireEvent.click(screen.getByText('😀'));
+  // Click the emoji inside the opened picker modal
+  fireEvent.click(within(screen.getByText('Pick an Emoji').parentElement).getByText('😀'));
 
     // UI should still reflect the emoji replacement
     const contentEl = await screen.findByTestId('speech-content');
