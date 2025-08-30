@@ -303,7 +303,12 @@ const SpeechDetail = () => {
           {renderSegments().map((s, i) => {
             if (s.type === 'text') return (<span key={`t-${i}`}>{s.text}</span>);
             return (
-              <button key={`a-${s.key}`} onClick={() => toggleAssociation(s.key)} style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: 'pointer' }} aria-label={`toggle-${s.key}`}>
+              <button
+                key={`a-${s.key}`}
+                onClick={() => toggleAssociation(s.key)}
+                style={{ background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
+                aria-label={`toggle-${s.key}`}
+              >
                 {s.text}
               </button>
             );
