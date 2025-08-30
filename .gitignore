@@ -20,7 +20,7 @@ firebase-debug.*.log
 *.local
 .env.local
 .firebaserc
-firebase.json
+
 storage-debug.log
 # Exclude generated types if you use TypeScript and generate types
 # for Cloud Functions
