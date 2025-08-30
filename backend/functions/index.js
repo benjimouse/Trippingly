@@ -59,7 +59,7 @@ const authenticate = async (req, res, next) => {
 // Save emoji association and clean speech text for a speech
 app.post("/saveEmojiAssociation", authenticate, async (req, res) => {
   const userId = req.user.uid;
-  const { speechId, originalText, emoji, position, cleanSpeech } = req.body;
+  const { speechId, assocId, originalText, emoji, position, cleanSpeech } = req.body;
 
   if (!speechId || typeof speechId !== "string") {
     logger.warn("Missing or invalid speechId in emoji association.");
@@ -86,12 +86,20 @@ app.post("/saveEmojiAssociation", authenticate, async (req, res) => {
     // Reference to the speech document
     const speechRef = db.collection("users").doc(userId).collection("speeches").doc(speechId);
     // Save association in a subcollection 'emojiAssociations'
-    await speechRef.collection("emojiAssociations").add({
+    const assocData = {
       originalText,
       emoji,
       position,
+      // allow client to provide initial showOriginal state; default false
+      showOriginal: req.body.showOriginal === true,
       createdAt: FieldValue.serverTimestamp(),
-    });
+    };
+    if (assocId && typeof assocId === 'string') {
+      // Use provided assocId as the document ID for idempotency across clients
+      await speechRef.collection("emojiAssociations").doc(assocId).set(assocData);
+    } else {
+      await speechRef.collection("emojiAssociations").add(assocData);
+    }
     // Optionally, preserve the clean speech text in the main document
     await speechRef.set({ cleanSpeech }, { merge: true });
     logger.info(`Saved emoji association for speech ${speechId} by user ${userId}`);
@@ -251,6 +259,22 @@ app.delete('/deleteSpeech/:speechId', authenticate, async (req, res) => {
         logger.error(`Error deleting speech ${speechId} for user ${userId}:`, error);
         res.status(500).send('Failed to delete speech. Please try again.');
     }
+});
+
+// Update association toggle state (showOriginal)
+app.post('/updateAssociationToggle', authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  const { speechId, assocId, showOriginal } = req.body;
+  if (!speechId || typeof speechId !== 'string') return res.status(400).send('speechId is required');
+  if (!assocId || typeof assocId !== 'string') return res.status(400).send('assocId is required');
+  try {
+    const assocRef = db.collection('users').doc(userId).collection('speeches').doc(speechId).collection('emojiAssociations').doc(assocId);
+    await assocRef.set({ showOriginal }, { merge: true });
+    res.status(200).json({ message: 'Updated association toggle' });
+  } catch (err) {
+    logger.error('Failed to update association toggle:', err);
+    res.status(500).send('Failed to update association toggle');
+  }
 });
 
 // Expose the Express app as a Cloud Function
