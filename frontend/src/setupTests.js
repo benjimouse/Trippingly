@@ -14,6 +14,8 @@ console.warn = (...args) => {
     const msg = args && args[0] && String(args[0]);
     if (msg && msg.includes('React Router Future Flag Warning')) return;
     if (msg && msg.includes('Relative route resolution within Splat routes is changing')) return;
-  } catch (e) {}
+  } catch {
+    // ignore environment detection errors
+  }
   origWarn.apply(console, args);
 };

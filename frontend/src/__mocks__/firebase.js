@@ -1,7 +1,7 @@
 // This file will mock the actual firebase.js for Jest tests
 
 export const auth = {
-  onAuthStateChanged: jest.fn((callback) => {
+  onAuthStateChanged: jest.fn(() => {
     return jest.fn();
   }),
   signOut: jest.fn(() => Promise.resolve()),
