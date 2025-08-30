@@ -59,7 +59,7 @@ const authenticate = async (req, res, next) => {
 // Save emoji association and clean speech text for a speech
 app.post("/saveEmojiAssociation", authenticate, async (req, res) => {
   const userId = req.user.uid;
-  const { speechId, assocId, originalText, emoji, position, cleanSpeech } = req.body;
+  const {speechId, assocId, originalText, emoji, position, cleanSpeech} = req.body;
 
   if (!speechId || typeof speechId !== "string") {
     logger.warn("Missing or invalid speechId in emoji association.");
@@ -94,16 +94,16 @@ app.post("/saveEmojiAssociation", authenticate, async (req, res) => {
       showOriginal: req.body.showOriginal === true,
       createdAt: FieldValue.serverTimestamp(),
     };
-    if (assocId && typeof assocId === 'string') {
+    if (assocId && typeof assocId === "string") {
       // Use provided assocId as the document ID for idempotency across clients
       await speechRef.collection("emojiAssociations").doc(assocId).set(assocData);
     } else {
       await speechRef.collection("emojiAssociations").add(assocData);
     }
     // Optionally, preserve the clean speech text in the main document
-    await speechRef.set({ cleanSpeech }, { merge: true });
+    await speechRef.set({cleanSpeech}, {merge: true});
     logger.info(`Saved emoji association for speech ${speechId} by user ${userId}`);
-    res.status(200).json({ message: "Emoji association saved successfully." });
+    res.status(200).json({message: "Emoji association saved successfully."});
   } catch (error) {
     logger.error("Error saving emoji association:", error);
     res.status(500).send("Failed to save emoji association.");
@@ -204,76 +204,84 @@ app.get("/getSpeeches", authenticate, async (req, res) => {
   }
 });
 
-app.get('/getSpeech/:speechId', authenticate, async (req, res) => {
-    const userId = req.user.uid;
-    const speechId = req.params.speechId; // Get speechId from URL parameters
-    logger.info(`Fetching speech ${speechId} for user: ${userId}`, { structuredData: true });
+app.get("/getSpeech/:speechId", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  const speechId = req.params.speechId; // Get speechId from URL parameters
+  logger.info(`Fetching speech ${speechId} for user: ${userId}`, {structuredData: true});
 
-    try {
-        // Get a reference to the specific speech document
-        const speechDocRef = db.collection('users').doc(userId).collection('speeches').doc(speechId);
-        const speechDoc = await speechDocRef.get();
+  try {
+    // Get a reference to the specific speech document
+    const speechDocRef = db.collection("users").doc(userId).collection("speeches").doc(speechId);
+    const speechDoc = await speechDocRef.get();
 
-        if (!speechDoc.exists) {
-            logger.info(`Speech ${speechId} not found for user ${userId}`);
-            return res.status(404).json({ message: 'Speech not found.' });
-        }
-
-        const speechData = speechDoc.data();
-
-        // IMPORTANT: Ensure the retrieved speech belongs to the authenticated user.
-        // This is already implicitly handled by the path db.collection('users').doc(userId),
-        // but explicitly checking userId from doc.data() is a good sanity check
-        // if you ever change your data model. For now, it's redundant but safe.
-        if (speechData.userId && speechData.userId !== userId) {
-             logger.warn(`User ${userId} attempted to access speech ${speechId} belonging to ${speechData.userId}`);
-             return res.status(403).json({ message: 'Access denied.' });
-        }
-
-        logger.info(`Successfully fetched speech ${speechId} for user ${userId}`);
-        res.status(200).json({
-            id: speechDoc.id,
-            name: speechData.name,
-            content: speechData.content,
-            createdAt: speechData.createdAt ? speechData.createdAt.toDate() : null // Convert Timestamp to JS Date
-        });
-
-    } catch (error) {
-        logger.error(`Error fetching speech ${speechId} for user ${userId}:`, error);
-        res.status(500).send('Failed to fetch speech details. Please try again.');
+    if (!speechDoc.exists) {
+      logger.info(`Speech ${speechId} not found for user ${userId}`);
+      return res.status(404).json({message: "Speech not found."});
     }
+
+    const speechData = speechDoc.data();
+
+    // IMPORTANT: Ensure the retrieved speech belongs to the authenticated user.
+    // This is already implicitly handled by the path db.collection('users').doc(userId),
+    // but explicitly checking userId from doc.data() is a good sanity check
+    // if you ever change your data model. For now, it's redundant but safe.
+    if (speechData.userId && speechData.userId !== userId) {
+      logger.warn(`User ${userId} attempted to access speech ${speechId} belonging to ${speechData.userId}`);
+      return res.status(403).json({message: "Access denied."});
+    }
+
+    logger.info(`Successfully fetched speech ${speechId} for user ${userId}`);
+    res.status(200).json({id: speechDoc.id,
+      name: speechData.name,
+      content: speechData.content,
+      createdAt: speechData.createdAt ? speechData.createdAt.toDate() : null, // Convert Timestamp to JS Date
+    });
+  } catch (error) {
+    logger.error(`Error fetching speech ${speechId} for user ${userId}:`, error);
+    res.status(500).send("Failed to fetch speech details. Please try again.");
+  }
 });
 
-app.delete('/deleteSpeech/:speechId', authenticate, async (req, res) => {
-    const userId = req.user.uid;
-    const speechId = req.params.speechId;
-    logger.info(`Deleting speech ${speechId} for user: ${userId}`, { structuredData: true });
+app.delete("/deleteSpeech/:speechId", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  const speechId = req.params.speechId;
+  logger.info(`Deleting speech ${speechId} for user: ${userId}`, {structuredData: true});
 
-    try {
-        const speechDocRef = db.collection('users').doc(userId).collection('speeches').doc(speechId);
-        await speechDocRef.delete();
+  try {
+    const speechDocRef = db.collection("users").doc(userId).collection("speeches").doc(speechId);
+    await speechDocRef.delete();
 
-        logger.info(`Successfully deleted speech ${speechId} for user ${userId}`);
-        res.status(200).json({ message: 'Speech deleted successfully.' });
-    } catch (error) {
-        logger.error(`Error deleting speech ${speechId} for user ${userId}:`, error);
-        res.status(500).send('Failed to delete speech. Please try again.');
-    }
+    logger.info(`Successfully deleted speech ${speechId} for user ${userId}`);
+    res.status(200).json({message: "Speech deleted successfully."});
+  } catch (error) {
+    logger.error(`Error deleting speech ${speechId} for user ${userId}:`, error);
+    res.status(500).send("Failed to delete speech. Please try again.");
+  }
 });
 
 // Update association toggle state (showOriginal)
-app.post('/updateAssociationToggle', authenticate, async (req, res) => {
+app.post("/updateAssociationToggle", authenticate, async (req, res) => {
   const userId = req.user.uid;
-  const { speechId, assocId, showOriginal } = req.body;
-  if (!speechId || typeof speechId !== 'string') return res.status(400).send('speechId is required');
-  if (!assocId || typeof assocId !== 'string') return res.status(400).send('assocId is required');
+  const {speechId, assocId, showOriginal} = req.body;
+  if (!speechId || typeof speechId !== "string") {
+    return res.status(400).send("speechId is required");
+  }
+  if (!assocId || typeof assocId !== "string") {
+    return res.status(400).send("assocId is required");
+  }
   try {
-    const assocRef = db.collection('users').doc(userId).collection('speeches').doc(speechId).collection('emojiAssociations').doc(assocId);
-    await assocRef.set({ showOriginal }, { merge: true });
-    res.status(200).json({ message: 'Updated association toggle' });
+    const assocRef = db
+        .collection("users")
+        .doc(userId)
+        .collection("speeches")
+        .doc(speechId)
+        .collection("emojiAssociations")
+        .doc(assocId);
+    await assocRef.set({showOriginal}, {merge: true});
+    res.status(200).json({message: "Updated association toggle"});
   } catch (err) {
-    logger.error('Failed to update association toggle:', err);
-    res.status(500).send('Failed to update association toggle');
+    logger.error("Failed to update association toggle:", err);
+    res.status(500).send("Failed to update association toggle");
   }
 });
 

@@ -18,7 +18,6 @@ const SpeechDetail = () => {
   const [error, setError] = useState('');
   const [selection, setSelection] = useState(null); // {start, end, text}
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [emojiToReplace, setEmojiToReplace] = useState(null);
   const [cleanSpeech, setCleanSpeech] = useState('');
   const [toast, setToast] = useState(null);
   const [associations, setAssociations] = useState([]);
@@ -30,7 +29,7 @@ const SpeechDetail = () => {
   const genAssocId = () => {
     try {
       if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-    } catch (e) {}
+    } catch { /* ignore crypto unavailability */ }
     return `assoc-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
   };
 
@@ -80,21 +79,22 @@ const SpeechDetail = () => {
             const rawToggles = parsed.toggles || {};
             const nextToggles = {};
             for (const a of nextAssociations) {
-              if (rawToggles.hasOwnProperty(a.id)) nextToggles[a.id] = rawToggles[a.id];
-              else if (rawToggles.hasOwnProperty(String(a.position))) nextToggles[a.id] = rawToggles[String(a.position)];
+              if (Object.prototype.hasOwnProperty.call(rawToggles, a.id)) nextToggles[a.id] = rawToggles[a.id];
+              else if (Object.prototype.hasOwnProperty.call(rawToggles, String(a.position))) nextToggles[a.id] = rawToggles[String(a.position)];
               else nextToggles[a.id] = false;
             }
             setAssociations(nextAssociations);
             setToggles(nextToggles);
           }
-        } catch (e) {
-          // ignore localStorage parse errors
+        } catch (err) {
+          void err; // ignore localStorage parse errors
         }
       } else {
         const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }));
         setError(errorData.message || `Failed to fetch speech: ${response.statusText}`);
       }
     } catch (err) {
+      void err;
       setError('An unexpected error occurred while fetching speech.');
     } finally {
       setLoading(false);
@@ -126,7 +126,7 @@ const SpeechDetail = () => {
     } else {
       try {
         if (prevFocusRef.current && prevFocusRef.current.focus) prevFocusRef.current.focus();
-      } catch (e) {}
+  } catch (err) { void err; }
     }
   }, [showEmojiPicker]);
 
@@ -146,9 +146,7 @@ const SpeechDetail = () => {
           const data = await response.json();
           setError(data.message || 'Failed to delete speech.');
         }
-      } catch (err) {
-        setError('An unexpected error occurred while deleting the speech.');
-      }
+  } catch (err) { void err; setError('An unexpected error occurred while deleting the speech.'); }
     }
   };
 
@@ -210,7 +208,7 @@ const SpeechDetail = () => {
 
   const handleEmojiPick = (emoji) => {
     if (!selection || !speech) return;
-    const { start, end, text } = selection;
+  const { start, text } = selection;
     // Replace highlighted text with emoji
     // Create an association with a stable id and position relative to cleanSpeech
     const assoc = { id: genAssocId(), position: start, length: text.length, originalText: text, emoji };
@@ -221,9 +219,7 @@ const SpeechDetail = () => {
     setToggles(nextToggles);
     try {
       localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations: nextAssociations, toggles: nextToggles }));
-    } catch (e) {
-      // ignore
-    }
+    } catch (err) { void err; }
     // Rebuild displayed content from cleanSpeech + associations (use id-keyed toggles)
     const build = (clean, assocList, toggleMap) => {
       let out = '';
@@ -236,9 +232,8 @@ const SpeechDetail = () => {
       if (idx < clean.length) out += clean.substring(idx);
       return out;
     };
-    const newContent = build(cleanSpeech, nextAssociations, nextToggles);
-    setSpeech({ ...speech, content: newContent });
-    setEmojiToReplace(emoji);
+  const newContent = build(cleanSpeech, nextAssociations, nextToggles);
+  setSpeech({ ...speech, content: newContent });
     setShowEmojiPicker(false);
     setSelection(null);
     // Save association to backend
@@ -258,7 +253,7 @@ const SpeechDetail = () => {
   const toggleAssociation = (assocId) => {
     const next = { ...toggles, [assocId]: !toggles[assocId] };
     setToggles(next);
-    try { localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations, toggles: next })); } catch (e) {}
+  try { localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations, toggles: next })); } catch (err) { void err; }
     // Persist toggle state server-side for cross-device sync
     (async () => {
       try {
@@ -271,9 +266,7 @@ const SpeechDetail = () => {
           },
           body: JSON.stringify({ speechId, assocId, showOriginal: !!next[assocId] }),
         });
-      } catch (e) {
-        // ignore network errors for now
-      }
+  } catch (err) { void err; /* ignore network errors for now */ }
     })();
     // rebuild displayed content
     const build = (clean, assocList, toggleMap) => {
@@ -298,7 +291,7 @@ const SpeechDetail = () => {
     let idx = 0;
     for (const a of associations) {
       if (a.position > idx) segs.push({ type: 'text', text: cleanSpeech.substring(idx, a.position) });
-  segs.push({ type: 'assoc', key: a.id, assoc: a, text: (toggles[a.id] ? a.originalText : a.emoji) });
+      segs.push({ type: 'assoc', key: a.id, assoc: a, text: (toggles[a.id] ? a.originalText : a.emoji) });
       idx = a.position + a.length;
     }
     if (idx < cleanSpeech.length) segs.push({ type: 'text', text: cleanSpeech.substring(idx) });
@@ -318,12 +311,12 @@ const SpeechDetail = () => {
         body: JSON.stringify({ speechId, assocId, originalText, emoji, position, cleanSpeech }),
       });
       if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({}));
-        console.error('Failed to save emoji association:', errData);
+  const errData = await resp.json().catch(() => ({}));
+  console.error('Failed to save emoji association:', errData);
         setToast(errData.message || 'Failed to save emoji association');
       }
     } catch (err) {
-      console.error('Failed to save emoji association:', err);
+      console.error('Failed to save emoji association: (network/error)', err);
       setToast('Failed to save emoji association');
     }
   };
