@@ -1,5 +1,6 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import {
   createUserWithEmailAndPassword,
@@ -8,6 +9,7 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 
+/* eslint-disable react-refresh/only-export-components */
 export const AuthContext = createContext();
 
 // Custom hook to use the auth context
