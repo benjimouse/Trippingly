@@ -100,7 +100,7 @@ npm install
 npm run serve
 ```
 
-This runs the Firebase emulators for Functions, Auth, and Firestore (if configured). If you haven't already, login with `firebase login` and verify `firebase.json` has emulator configuration.
+This runs the Firebase emulators for Functions, Auth, and Firestore (if configured). If you haven't already, login with `firebase login` to authenticate the Firebase CLI with your Google account. If your credentials expire or you run into authentication issues, use `firebase login -reauth` to refresh them. Also, verify `firebase.json` has emulator configuration.
 
 Note: the Functions emulator prints the exact local URL for each function after startup — copy that URL into `VITE_CLOUD_FUNCTION_URL` to be certain you are hitting the correct local path.
 

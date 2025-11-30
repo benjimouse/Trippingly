@@ -1,7 +1,7 @@
 // src/firebase.js
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'; // Will use this later for database
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'; // Will use this later for database
 
 // Your web app's Firebase configuration
 // For local development, you might put these directly here.
@@ -23,3 +23,10 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app); // Export db for later use
+
+// Connect to emulators in development
+if (import.meta.env.DEV) {
+  console.log("Connecting to local Firebase emulators.");
+  connectAuthEmulator(auth, 'http://localhost:9099');
+  connectFirestoreEmulator(db, 'localhost', 8080);
+}
