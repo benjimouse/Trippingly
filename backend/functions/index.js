@@ -8,7 +8,16 @@ const cors = require("cors");
 
 // Import Firebase Admin SDK for server-side operations
 const admin = require("firebase-admin");
-admin.initializeApp(); // Initialize Admin SDK
+
+// Initialize Admin SDK conditionally based on emulator presence
+if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  // When running with emulators, both frontend and backend MUST be initialized
+  // with the same project ID to prevent audience mismatch errors.
+  admin.initializeApp({ projectId: "trippingly-on-the-tongue" });
+} else {
+  // Use default initialization for production or non-emulator environments
+  admin.initializeApp();
+}
 
 
 // Get Firestore instance
