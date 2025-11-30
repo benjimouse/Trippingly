@@ -7,17 +7,22 @@ const express = require("express");
 const cors = require("cors");
 
 // Import Firebase Admin SDK for server-side operations
-const admin = require("firebase-admin").default;
-logger.info("DEBUG: Admin object keys (after require):", Object.keys(admin || {})); // DEBUG 1
-admin.initializeApp(); // Initialize Admin SDK
-logger.info("DEBUG: Admin object keys (after initializeApp):", Object.keys(admin || {})); // DEBUG 2
+const admin = require("firebase-admin");
+
+// Initialize Admin SDK conditionally based on emulator presence
+if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  // When running with emulators, both frontend and backend MUST be initialized
+  // with the same project ID to prevent audience mismatch errors.
+  admin.initializeApp({ projectId: "trippingly-on-the-tongue" });
+} else {
+  // Use default initialization for production or non-emulator environments
+  admin.initializeApp();
+}
 
 
 // Get Firestore instance
+const { FieldValue } = require("firebase-admin/firestore");
 const db = admin.firestore();
-logger.info("DEBUG: Firestore DB instance keys (after admin.firestore()):", Object.keys(db || {})); // DEBUG 3
-const FieldValue = admin.firestore.FieldValue;
-logger.info("DEBUG: FieldValue constant:", FieldValue); // DEBUG 4
 
 
 const app = express();
