@@ -1,6 +1,6 @@
 // src/components/SpeechDetail.jsx
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../App.css';
@@ -8,20 +8,78 @@ import { VITE_CLOUD_FUNCTION_URL } from '../utils/env';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
 
+// --- Reducer setup ---
+const initialState = {
+  speech: null,
+  loading: true,
+  error: '',
+  selection: null, // {start, end, text}
+  showEmojiPicker: false,
+  cleanSpeech: '',
+  toast: null,
+  associations: [],
+  toggles: {},
+};
+
+function speechDetailReducer(state, action) {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, loading: false };
+    case 'SET_SPEECH_DATA':
+      return {
+        ...state,
+        speech: action.payload.speech,
+        cleanSpeech: action.payload.cleanSpeech,
+        associations: action.payload.associations,
+        toggles: action.payload.toggles,
+        loading: false,
+      };
+    case 'SET_SELECTION':
+      return { ...state, selection: action.payload };
+    case 'SET_SHOW_EMOJI_PICKER':
+      return { ...state, showEmojiPicker: action.payload };
+    case 'SET_TOAST':
+      return { ...state, toast: action.payload };
+    case 'UPDATE_ASSOCIATIONS_AND_TOGGLES': {
+      const { nextAssociations, nextToggles, newSpeechContent } = action.payload;
+      return {
+        ...state,
+        associations: nextAssociations,
+        toggles: nextToggles,
+        speech: { ...state.speech, content: newSpeechContent },
+        selection: null,
+        showEmojiPicker: false,
+      };
+    }
+    case 'UPDATE_DISPLAYED_SPEECH_CONTENT':
+      return { ...state, speech: { ...state.speech, content: action.payload } };
+    case 'SET_CLEAN_SPEECH':
+      return { ...state, cleanSpeech: action.payload };
+    default:
+      throw new Error(`Unhandled action type: ${action.type}`);
+  }
+}
+
+// --- Component ---
 const SpeechDetail = () => {
   const { speechId } = useParams();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
 
-  const [speech, setSpeech] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [selection, setSelection] = useState(null); // {start, end, text}
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [cleanSpeech, setCleanSpeech] = useState('');
-  const [toast, setToast] = useState(null);
-  const [associations, setAssociations] = useState([]);
-  const [toggles, setToggles] = useState({});
+  const [state, dispatch] = useReducer(speechDetailReducer, initialState);
+  const {
+    speech,
+    loading,
+    error,
+    selection,
+    showEmojiPicker,
+    cleanSpeech,
+    toast,
+    associations,
+    toggles,
+  } = state;
   const modalRef = useRef(null);
   const prevFocusRef = useRef(null);
 
@@ -33,10 +91,23 @@ const SpeechDetail = () => {
     return `assoc-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
   };
 
+  // Helper to rebuild displayed content from cleanSpeech + associations + toggles
+  const buildDisplayedContent = useCallback((clean, assocList, toggleMap) => {
+    let out = '';
+    let idx = 0;
+    for (const a of assocList) {
+      if (a.position > idx) out += clean.substring(idx, a.position);
+      out += (toggleMap[a.id] ? a.originalText : a.emoji);
+      idx = a.position + a.length;
+    }
+    if (idx < clean.length) out += clean.substring(idx);
+    return out;
+  }, []);
+
   // For test environments only: allow direct selection state setting
   useEffect(() => {
     if (process.env.NODE_ENV === 'test' && typeof window !== 'undefined') {
-      window._setSpeechSelection = (sel) => setSelection(sel);
+      window._setSpeechSelection = (sel) => dispatch({ type: 'SET_SELECTION', payload: sel });
       return () => { delete window._setSpeechSelection; };
     }
   }, []);
@@ -45,12 +116,12 @@ const SpeechDetail = () => {
 
   const fetchSpeech = useCallback(async () => {
     if (!currentUser || !cloudFunctionBaseUrl || !speechId) {
-      setLoading(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
       return;
     }
-    setLoading(true);
-    setError('');
-    setSpeech(null);
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: '' });
+    dispatch({ type: 'SET_SPEECH_DATA', payload: { speech: null, cleanSpeech: '', associations: [], toggles: {} } }); // Reset data
     try {
       const idToken = await currentUser.getIdToken();
       const url = `${cloudFunctionBaseUrl}/getSpeech/${speechId}`;
@@ -91,13 +162,13 @@ const SpeechDetail = () => {
         }
       } else {
         const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }));
-        setError(errorData.message || `Failed to fetch speech: ${response.statusText}`);
+        dispatch({ type: 'SET_ERROR', payload: errorData.message || `Failed to fetch speech: ${response.statusText}` });
       }
     } catch (err) {
-      void err;
-      setError('An unexpected error occurred while fetching speech.');
+      console.error("An unexpected error occurred while fetching speech:", err);
+      dispatch({ type: 'SET_ERROR', payload: 'An unexpected error occurred while fetching speech.' });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, [currentUser, cloudFunctionBaseUrl, speechId]);
 
@@ -108,7 +179,7 @@ const SpeechDetail = () => {
   // Auto-dismiss toast (placed here so hooks run in the same order every render)
   useEffect(() => {
     if (!toast) return undefined;
-    const timer = setTimeout(() => setToast(null), 4000);
+    const timer = setTimeout(() => dispatch({ type: 'SET_TOAST', payload: null }), 4000);
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -124,9 +195,7 @@ const SpeechDetail = () => {
         }
       }, 0);
     } else {
-      try {
-        if (prevFocusRef.current && prevFocusRef.current.focus) prevFocusRef.current.focus();
-  } catch (err) { void err; }
+  } catch (err) { console.error("Error restoring focus:", err); }
     }
   }, [showEmojiPicker]);
 
@@ -144,9 +213,12 @@ const SpeechDetail = () => {
           navigate('/dashboard');
         } else {
           const data = await response.json();
-          setError(data.message || 'Failed to delete speech.');
+          dispatch({ type: 'SET_ERROR', payload: data.message || 'Failed to delete speech.' });
         }
-  } catch (err) { void err; setError('An unexpected error occurred while deleting the speech.'); }
+      } catch (err) {
+        console.error("Error deleting speech:", err);
+        dispatch({ type: 'SET_ERROR', payload: 'An unexpected error occurred while deleting the speech.' });
+      }
     }
   };
 
@@ -183,27 +255,27 @@ const SpeechDetail = () => {
     const contentEl = document.getElementById('speech-content');
     const selectionObj = window.getSelection();
     if (!contentEl || !selectionObj || selectionObj.isCollapsed) {
-      setSelection(null);
+      dispatch({ type: 'SET_SELECTION', payload: null });
       return;
     }
     if (!selectionObj.anchorNode || !contentEl.contains(selectionObj.anchorNode)) {
-      setSelection(null);
+      dispatch({ type: 'SET_SELECTION', payload: null });
       return;
     }
     const selectedText = selectionObj.toString();
     if (!selectedText.trim()) {
-      setSelection(null);
+      dispatch({ type: 'SET_SELECTION', payload: null });
       return;
     }
   // Compute start relative to the original (clean) speech so positions remain stable
   const content = cleanSpeech;
   const start = content.indexOf(selectedText);
     if (start === -1) {
-      setSelection(null);
+      dispatch({ type: 'SET_SELECTION', payload: null });
       return;
     }
     const end = start + selectedText.length;
-    setSelection({ start, end, text: selectedText });
+    dispatch({ type: 'SET_SELECTION', payload: { start, end, text: selectedText } });
   };
 
   const handleEmojiPick = (emoji) => {
@@ -213,29 +285,18 @@ const SpeechDetail = () => {
     // Create an association with a stable id and position relative to cleanSpeech
     const assoc = { id: genAssocId(), position: start, length: text.length, originalText: text, emoji };
     const nextAssociations = [...associations, assoc].sort((a, b) => a.position - b.position);
-    setAssociations(nextAssociations);
     // persist associations + toggles (default show emoji => false for showOriginal)
     const nextToggles = { ...toggles, [assoc.id]: false };
-    setToggles(nextToggles);
     try {
       localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations: nextAssociations, toggles: nextToggles }));
-    } catch (err) { void err; }
-    // Rebuild displayed content from cleanSpeech + associations (use id-keyed toggles)
-    const build = (clean, assocList, toggleMap) => {
-      let out = '';
-      let idx = 0;
-      for (const a of assocList) {
-        if (a.position > idx) out += clean.substring(idx, a.position);
-        out += (toggleMap[a.id] ? a.originalText : a.emoji);
-        idx = a.position + a.length;
-      }
-      if (idx < clean.length) out += clean.substring(idx);
-      return out;
-    };
-  const newContent = build(cleanSpeech, nextAssociations, nextToggles);
-  setSpeech({ ...speech, content: newContent });
-    setShowEmojiPicker(false);
-    setSelection(null);
+    } catch (err) {
+      console.error("Error saving associations to localStorage:", err);
+    }
+    const newSpeechContent = buildDisplayedContent(cleanSpeech, nextAssociations, nextToggles);
+    dispatch({
+      type: 'UPDATE_ASSOCIATIONS_AND_TOGGLES',
+      payload: { nextAssociations, nextToggles, newSpeechContent },
+    });
     // Save association to backend
     saveEmojiAssociation({
       speechId,
@@ -251,9 +312,13 @@ const SpeechDetail = () => {
 
   // Toggle an association's display between emoji and original text (use assoc id)
   const toggleAssociation = (assocId) => {
-    const next = { ...toggles, [assocId]: !toggles[assocId] };
-    setToggles(next);
-  try { localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations, toggles: next })); } catch (err) { void err; }
+    const nextToggles = { ...toggles, [assocId]: !toggles[assocId] };
+    try {
+      localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations, toggles: nextToggles }));
+    } catch (err) {
+      console.error("Error saving toggles to localStorage:", err);
+    }
+
     // Persist toggle state server-side for cross-device sync
     (async () => {
       try {
@@ -264,24 +329,16 @@ const SpeechDetail = () => {
             'Authorization': `Bearer ${idToken}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ speechId, assocId, showOriginal: !!next[assocId] }),
+          body: JSON.stringify({ speechId, assocId, showOriginal: !!nextToggles[assocId] }),
         });
-  } catch (err) { void err; /* ignore network errors for now */ }
-    })();
-    // rebuild displayed content
-    const build = (clean, assocList, toggleMap) => {
-      let out = '';
-      let idx = 0;
-      for (const a of assocList) {
-        if (a.position > idx) out += clean.substring(idx, a.position);
-        out += (toggleMap[a.id] ? a.originalText : a.emoji);
-        idx = a.position + a.length;
+      } catch (err) {
+        console.error("Error updating association toggle on backend:", err);
+        // We could dispatch a toast here if desired
       }
-      if (idx < clean.length) out += clean.substring(idx);
-      return out;
-    };
-    const newContent = build(cleanSpeech, associations, next);
-    setSpeech({ ...speech, content: newContent });
+    })();
+
+    const newSpeechContent = buildDisplayedContent(cleanSpeech, associations, nextToggles);
+    dispatch({ type: 'UPDATE_ASSOCIATIONS_AND_TOGGLES', payload: { nextAssociations: associations, nextToggles: nextToggles, newSpeechContent: newSpeechContent } });
   };
 
   // Helper to render segments (used in JSX)
@@ -349,7 +406,7 @@ const SpeechDetail = () => {
         {selection && (
           <button
             style={{ position: 'absolute', top: 5, right: 5, zIndex: 2, background: 'linear-gradient(90deg, #007bff 0%, #00c6ff 100%)', color: '#fff', borderRadius: '6px', padding: '6px 16px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-            onClick={() => setShowEmojiPicker(true)}
+            onClick={() => dispatch({ type: 'SET_SHOW_EMOJI_PICKER', payload: true })}
           >
             😊 Replace with Emoji
           </button>
@@ -368,7 +425,7 @@ const SpeechDetail = () => {
               emojiSize={20}
               style={{ width: '100%' }}
             />
-            <button style={{ marginTop: '18px' }} onClick={() => setShowEmojiPicker(false)}>Cancel</button>
+            <button style={{ marginTop: '18px' }} onClick={() => dispatch({ type: 'SET_SHOW_EMOJI_PICKER', payload: false })}>Cancel</button>
           </div>
         </div>
       )}
