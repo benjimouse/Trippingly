@@ -4,9 +4,10 @@ import React, { useState, useEffect, useCallback, useRef, useReducer } from 'rea
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../App.css';
-import { VITE_CLOUD_FUNCTION_URL } from '../utils/env';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
+import useSpeechAPI from '../hooks/useSpeechAPI';
+import { buildDisplayedContent } from '../utils/speechUtils';
 
 // --- Reducer setup ---
 const initialState = {
@@ -91,18 +92,7 @@ const SpeechDetail = () => {
     return `assoc-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
   };
 
-  // Helper to rebuild displayed content from cleanSpeech + associations + toggles
-  const buildDisplayedContent = useCallback((clean, assocList, toggleMap) => {
-    let out = '';
-    let idx = 0;
-    for (const a of assocList) {
-      if (a.position > idx) out += clean.substring(idx, a.position);
-      out += (toggleMap[a.id] ? a.originalText : a.emoji);
-      idx = a.position + a.length;
-    }
-    if (idx < clean.length) out += clean.substring(idx);
-    return out;
-  }, []);
+
 
   // For test environments only: allow direct selection state setting
   useEffect(() => {
@@ -112,69 +102,54 @@ const SpeechDetail = () => {
     }
   }, []);
 
-  const cloudFunctionBaseUrl = VITE_CLOUD_FUNCTION_URL;
+  // Initialize API hook
+  const { fetchSpeech, saveEmojiAssociation, deleteSpeech, updateAssociationToggle } = useSpeechAPI(speechId, dispatch);
 
-  const fetchSpeech = useCallback(async () => {
-    if (!currentUser || !cloudFunctionBaseUrl || !speechId) {
-      dispatch({ type: 'SET_LOADING', payload: false });
-      return;
-    }
-    dispatch({ type: 'SET_LOADING', payload: true });
-    dispatch({ type: 'SET_ERROR', payload: '' });
-    dispatch({ type: 'SET_SPEECH_DATA', payload: { speech: null, cleanSpeech: '', associations: [], toggles: {} } }); // Reset data
-    try {
-      const idToken = await currentUser.getIdToken();
-      const url = `${cloudFunctionBaseUrl}/getSpeech/${speechId}`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSpeech(data);
-        setCleanSpeech(data.content); // Save original speech text
-        // Load any locally persisted associations/toggles for this speech
+
+
+  // Effect to fetch speech data
+  useEffect(() => {
+    const loadSpeechData = async () => {
+      const data = await fetchSpeech(); // fetchSpeech now comes from the hook
+      if (data) {
+        // Process data here, including localStorage logic
+        let nextAssociations = [];
+        let nextToggles = {};
         try {
           const raw = localStorage.getItem(`speech_assoc:${speechId}`);
           if (raw) {
             const parsed = JSON.parse(raw);
-            // Ensure each association has an id (migrate older saved data keyed by position)
-            const nextAssociations = (parsed.associations || []).map(a => ({
+            nextAssociations = (parsed.associations || []).map(a => ({
               ...a,
               id: a.id || String(a.position || genAssocId()),
             })).sort((a, b) => a.position - b.position);
-            // Normalize toggles: prefer id keys, but fall back to position-based keys from old data
             const rawToggles = parsed.toggles || {};
-            const nextToggles = {};
             for (const a of nextAssociations) {
               if (Object.prototype.hasOwnProperty.call(rawToggles, a.id)) nextToggles[a.id] = rawToggles[a.id];
               else if (Object.prototype.hasOwnProperty.call(rawToggles, String(a.position))) nextToggles[a.id] = rawToggles[String(a.position)];
               else nextToggles[a.id] = false;
             }
-            setAssociations(nextAssociations);
-            setToggles(nextToggles);
           }
         } catch (err) {
-          void err; // ignore localStorage parse errors
+          console.error("Error parsing localStorage for speech associations:", err);
+          nextAssociations = [];
+          nextToggles = {};
         }
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }));
-        dispatch({ type: 'SET_ERROR', payload: errorData.message || `Failed to fetch speech: ${response.statusText}` });
-      }
-    } catch (err) {
-      console.error("An unexpected error occurred while fetching speech:", err);
-      dispatch({ type: 'SET_ERROR', payload: 'An unexpected error occurred while fetching speech.' });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [currentUser, cloudFunctionBaseUrl, speechId]);
 
-  useEffect(() => {
-    fetchSpeech();
-  }, [fetchSpeech]);
+        const displayedContent = buildDisplayedContent(data.content, nextAssociations, nextToggles);
+        dispatch({
+          type: 'SET_SPEECH_DATA',
+          payload: {
+            speech: { ...data, content: displayedContent },
+            cleanSpeech: data.content,
+            associations: nextAssociations,
+            toggles: nextToggles,
+          }
+        });
+      }
+    };
+    loadSpeechData();
+  }, [fetchSpeech, speechId, buildDisplayedContent, dispatch, genAssocId]); // Added dispatch, genAssocId
 
   // Auto-dismiss toast (placed here so hooks run in the same order every render)
   useEffect(() => {
@@ -199,25 +174,13 @@ const SpeechDetail = () => {
     }
   }, [showEmojiPicker]);
 
-  const handleDelete = async () => {
+
+
+  const handleDeleteClick = async () => {
     if (window.confirm('Are you sure you want to delete this speech?')) {
-      try {
-        const idToken = await currentUser.getIdToken();
-        const response = await fetch(`${cloudFunctionBaseUrl}/deleteSpeech/${speechId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${idToken}`,
-          },
-        });
-        if (response.ok) {
-          navigate('/dashboard');
-        } else {
-          const data = await response.json();
-          dispatch({ type: 'SET_ERROR', payload: data.message || 'Failed to delete speech.' });
-        }
-      } catch (err) {
-        console.error("Error deleting speech:", err);
-        dispatch({ type: 'SET_ERROR', payload: 'An unexpected error occurred while deleting the speech.' });
+      const success = await deleteSpeech(); // Call API hook's deleteSpeech
+      if (success) {
+        navigate('/dashboard');
       }
     }
   };
@@ -298,20 +261,25 @@ const SpeechDetail = () => {
       payload: { nextAssociations, nextToggles, newSpeechContent },
     });
     // Save association to backend
-    saveEmojiAssociation({
-      speechId,
-      assocId: assoc.id,
-      originalText: text,
-      emoji,
-      position: start,
-      cleanSpeech,
-    });
+    (async () => {
+      const success = await saveEmojiAssociation({
+        assocId: assoc.id,
+        originalText: text,
+        emoji,
+        position: start,
+        cleanSpeech,
+      });
+      if (!success) {
+        // Handle error if API call failed, e.g., revert local state or show specific error
+        console.error("Failed to save emoji association to backend.");
+      }
+    })();
   };
 
   
 
   // Toggle an association's display between emoji and original text (use assoc id)
-  const toggleAssociation = (assocId) => {
+  const toggleAssociation = async (assocId) => { // Made async as it calls an async hook function
     const nextToggles = { ...toggles, [assocId]: !toggles[assocId] };
     try {
       localStorage.setItem(`speech_assoc:${speechId}`, JSON.stringify({ associations, toggles: nextToggles }));
@@ -320,30 +288,15 @@ const SpeechDetail = () => {
     }
 
     // Persist toggle state server-side for cross-device sync
-    (async () => {
-      try {
-        const idToken = await currentUser.getIdToken();
-        await fetch(`${cloudFunctionBaseUrl}/updateAssociationToggle`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${idToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ speechId, assocId, showOriginal: !!nextToggles[assocId] }),
-        });
-      } catch (err) {
-        console.error("Error updating association toggle on backend:", err);
-        // We could dispatch a toast here if desired
-      }
-    })();
+    await updateAssociationToggle(assocId, !!nextToggles[assocId]); // Call API hook's updateAssociationToggle
 
     const newSpeechContent = buildDisplayedContent(cleanSpeech, associations, nextToggles);
     dispatch({ type: 'UPDATE_ASSOCIATIONS_AND_TOGGLES', payload: { nextAssociations: associations, nextToggles: nextToggles, newSpeechContent: newSpeechContent } });
   };
 
   // Helper to render segments (used in JSX)
-  const renderSegments = () => {
-    if (!cleanSpeech) return [ { type: 'text', text: speech.content } ];
+  const renderSegments = useCallback(() => {
+    if (!cleanSpeech || !speech) return [{ type: 'text', text: speech.content }];
     const segs = [];
     let idx = 0;
     for (const a of associations) {
@@ -353,30 +306,9 @@ const SpeechDetail = () => {
     }
     if (idx < cleanSpeech.length) segs.push({ type: 'text', text: cleanSpeech.substring(idx) });
     return segs;
-  };
+  }, [cleanSpeech, speech, associations, toggles]); // Added speech to deps
 
-  // Function to send association to backend
-  const saveEmojiAssociation = async ({ speechId, assocId, originalText, emoji, position, cleanSpeech }) => {
-    try {
-      const idToken = await currentUser.getIdToken();
-      const resp = await fetch(`${cloudFunctionBaseUrl}/saveEmojiAssociation`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ speechId, assocId, originalText, emoji, position, cleanSpeech }),
-      });
-      if (!resp.ok) {
-  const errData = await resp.json().catch(() => ({}));
-  console.error('Failed to save emoji association:', errData);
-        setToast(errData.message || 'Failed to save emoji association');
-      }
-    } catch (err) {
-      console.error('Failed to save emoji association: (network/error)', err);
-      setToast('Failed to save emoji association');
-    }
-  };
+
   return (
     <div className="container">
       <h2>Speech: {speech.name}</h2>
@@ -437,7 +369,7 @@ const SpeechDetail = () => {
           {toast}
         </div>
       )}
-      <button onClick={handleDelete} style={{ backgroundColor: '#d9534f', marginTop: '10px' }}>Delete Speech</button>
+      <button onClick={handleDeleteClick} style={{ backgroundColor: '#d9534f', marginTop: '10px' }}>Delete Speech</button>
     </div>
   );
 }
