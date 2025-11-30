@@ -12,6 +12,7 @@ backend/functions/node_modules/
 # Environment variables
 .env
 /backend/.env
+.env*
 
 # Firebase specific
 .firebase/
@@ -37,3 +38,6 @@ firebase-debug 2.log
 
 # Editor-specific files
 *.orig
+
+# OS
+.DS_Store

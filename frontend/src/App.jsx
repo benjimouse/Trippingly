@@ -88,30 +88,30 @@ function App() {
             <h1>Trippingly App</h1>
             <Routes>
               {/* Public Routes */}
-              {/* <Route path="/register" element={<Register />} /> */}
+              <Route path="/register" element={<Register />} />
               <Route path="/login" element={<Login />} />
 
               {/* Protected Route */}
-              {/* <Route
+              <Route
                 path="/dashboard"
                 element={
                   <PrivateRoute>
                     <Dashboard />
                   </PrivateRoute>
                 }
-              /> */}
+              />
 
-              {/* <Route
+              <Route
                 path="/speeches/:speechId" // This defines a URL parameter named 'speechId'
                 element={
                   <PrivateRoute>
                     <SpeechDetail />
                   </PrivateRoute>
                 }
-              /> */}
+              />
               
               {/* Default redirect for root path */}
-              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               {/* Or for a landing page if you prefer:
               <Route path="/" element={<div>Welcome to Trippingly! <Link to="/login">Log In</Link> or <Link to="/register">Register</Link></div>} />
               */}
