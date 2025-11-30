@@ -1,7 +1,6 @@
-// src/App.jsx
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthContextProvider, PrivateRoute } from './context/AuthContext';
+import { AuthContextProvider, PrivateRoute, useAuth } from './context/AuthContext';
 import Register from './components/Register';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -86,40 +85,50 @@ function App() {
         <ErrorBoundary>
           <div style={{ padding: '20px' }}>
             <h1>Trippingly App</h1>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/register" element={<Register />} />
-              <Route path="/login" element={<Login />} />
-
-              {/* Protected Route */}
-              <Route
-                path="/dashboard"
-                element={
-                  <PrivateRoute>
-                    <Dashboard />
-                  </PrivateRoute>
-                }
-              />
-
-              <Route
-                path="/speeches/:speechId" // This defines a URL parameter named 'speechId'
-                element={
-                  <PrivateRoute>
-                    <SpeechDetail />
-                  </PrivateRoute>
-                }
-              />
-              
-              {/* Default redirect for root path */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              {/* Or for a landing page if you prefer:
-              <Route path="/" element={<div>Welcome to Trippingly! <Link to="/login">Log In</Link> or <Link to="/register">Register</Link></div>} />
-              */}
-            </Routes>
+            <RoutesWithAuth />
           </div>
         </ErrorBoundary>
       </AuthContextProvider>
     </Router>
+  );
+}
+
+// NEW COMPONENT to handle authentication-dependent routing
+function RoutesWithAuth() {
+  const { currentUser, loading } = useAuth(); // Use the auth hook
+
+  if (loading) {
+    return <div>Loading authentication status...</div>; // Or a spinner
+  }
+
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/register" element={<Register />} />
+      <Route path="/login" element={<Login />} />
+
+      {/* Protected Route */}
+      <Route
+        path="/dashboard"
+        element={
+          <PrivateRoute>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/speeches/:speechId" // This defines a URL parameter named 'speechId'
+        element={
+          <PrivateRoute>
+            <SpeechDetail />
+          </PrivateRoute>
+        }
+      />
+      
+      {/* Dynamic Default redirect for root path */}
+      <Route path="/" element={currentUser ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+    </Routes>
   );
 }
 

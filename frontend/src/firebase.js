@@ -1,11 +1,9 @@
-// src/firebase.js
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'; // Will use this later for database
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions'; // NEW IMPORT
 
 // Your web app's Firebase configuration
-// For local development, you might put these directly here.
-// For production, you'd typically use environment variables (see note below).
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -16,17 +14,35 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_MEASUREMENT_ID
 };
 
-
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase services
 export const auth = getAuth(app);
-export const db = getFirestore(app); // Export db for later use
+export const db = getFirestore(app);
+export const functions = getFunctions(app); // NEW EXPORT
 
 // Connect to emulators in development
-if (import.meta.env.DEV) {
+// Use VITE_USE_FIREBASE_EMULATORS=true in your .env.local to enable
+if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
   console.log("Connecting to local Firebase emulators.");
-  connectAuthEmulator(auth, 'http://localhost:9099');
-  connectFirestoreEmulator(db, 'localhost', 8080);
+  try {
+    connectAuthEmulator(auth, import.meta.env.VITE_AUTH_EMULATOR_URL || 'http://localhost:9099');
+    connectFirestoreEmulator(
+      db,
+      import.meta.env.VITE_FIRESTORE_EMULATOR_HOST || 'localhost',
+      Number(import.meta.env.VITE_FIRESTORE_EMULATOR_PORT || 8080)
+    );
+    connectFunctionsEmulator(
+      functions,
+      import.meta.env.VITE_FUNCTIONS_EMULATOR_HOST || 'localhost',
+      Number(import.meta.env.VITE_FUNCTIONS_EMULATOR_PORT || 5001)
+    );
+    console.log("Frontend connected to Firebase emulators successfully.");
+  } catch (error) {
+    console.error("Failed to connect to Firebase emulators:", error);
+  }
 }
+
+// NOTE: For Cloud Functions, ensure VITE_CLOUD_FUNCTION_URL is set in your .env.local
+//       e.g., VITE_CLOUD_FUNCTION_URL="http://localhost:5001/<PROJECT_ID>/us-central1/api"

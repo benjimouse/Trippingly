@@ -104,6 +104,34 @@ This runs the Firebase emulators for Functions, Auth, and Firestore (if configur
 
 Note: the Functions emulator prints the exact local URL for each function after startup — copy that URL into `VITE_CLOUD_FUNCTION_URL` to be certain you are hitting the correct local path.
 
+## Local Development with Emulators
+
+To ensure your frontend connects correctly to the local Firebase emulators for Auth, Firestore, and Functions, set the following environment variables in a `.env.local` file within your `frontend/` directory (create one if it doesn't exist):
+
+```dotenv
+# Enable emulator connections
+VITE_USE_FIREBASE_EMULATORS=true
+
+# Emulator URLs/ports (match those displayed by `firebase emulators:start`)
+VITE_AUTH_EMULATOR_URL="http://localhost:9099"
+VITE_FIRESTORE_EMULATOR_HOST="localhost"
+VITE_FIRESTORE_EMULATOR_PORT="8080"
+VITE_FUNCTIONS_EMULATOR_HOST="localhost"
+VITE_FUNCTIONS_EMULATOR_PORT="5001"
+
+# The base URL for your Cloud Functions API endpoint (replace <PROJECT_ID> and region as needed)
+# This is used by the frontend to make API calls to your functions.
+VITE_CLOUD_FUNCTION_URL="http://localhost:5001/<PROJECT_ID>/us-central1/api"
+```
+
+**Steps to run with emulators:**
+
+1.  **Start Firebase Emulators:** From `backend/functions`, run `npm run serve`.
+2.  **Start Frontend Dev Server:** From `frontend/`, run `npm run dev`.
+3.  Ensure you have the `.env.local` file configured as above in your `frontend/` directory.
+
+---
+
 3. Key endpoints
 
 - `GET /getSpeech/:speechId` — fetch a speech owned by the authenticated user.
