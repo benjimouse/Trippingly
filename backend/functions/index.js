@@ -20,6 +20,8 @@ if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
 }
 
 
+const { validateRequest } = require("./middleware/validation.js");
+
 // Get Firestore instance
 const { FieldValue } = require("firebase-admin/firestore");
 const db = admin.firestore();
@@ -35,6 +37,21 @@ app.use(cors({
 
 // Middleware to parse JSON request bodies
 app.use(express.json());
+
+// --- Schemas ---
+const saveEmojiAssociationSchema = {
+  speechId: { required: true, type: "string" },
+  originalText: { required: true, type: "string" },
+  emoji: { required: true, type: "string" },
+  position: { required: true, type: "number" },
+  cleanSpeech: { required: true, type: "string" },
+};
+
+const uploadSpeechSchema = {
+  speechName: { required: true, type: "string", notEmpty: true },
+  fileContent: { required: true, type: "string", notEmpty: true },
+};
+
 
 // --- Authentication Middleware ---
 // This function will check if the user is authenticated via their ID token
@@ -62,30 +79,9 @@ const authenticate = async (req, res, next) => {
 
 // --- API Endpoints ---
 // Save emoji association and clean speech text for a speech
-app.post("/saveEmojiAssociation", authenticate, async (req, res) => {
+app.post("/saveEmojiAssociation", authenticate, validateRequest(saveEmojiAssociationSchema), async (req, res) => {
   const userId = req.user.uid;
   const {speechId, assocId, originalText, emoji, position, cleanSpeech} = req.body;
-
-  if (!speechId || typeof speechId !== "string") {
-    logger.warn("Missing or invalid speechId in emoji association.");
-    return res.status(400).send("speechId is required.");
-  }
-  if (!originalText || typeof originalText !== "string") {
-    logger.warn("Missing or invalid originalText in emoji association.");
-    return res.status(400).send("originalText is required.");
-  }
-  if (!emoji || typeof emoji !== "string") {
-    logger.warn("Missing or invalid emoji in emoji association.");
-    return res.status(400).send("emoji is required.");
-  }
-  if (typeof position !== "number") {
-    logger.warn("Missing or invalid position in emoji association.");
-    return res.status(400).send("position is required.");
-  }
-  if (!cleanSpeech || typeof cleanSpeech !== "string") {
-    logger.warn("Missing or invalid cleanSpeech in emoji association.");
-    return res.status(400).send("cleanSpeech is required.");
-  }
 
   try {
     // Reference to the speech document
@@ -124,7 +120,7 @@ app.get("/", (req, res) => {
 });
 
 // New endpoint to upload and store a speech
-app.post("/uploadSpeech", authenticate, async (req, res) => {
+app.post("/uploadSpeech", authenticate, validateRequest(uploadSpeechSchema), async (req, res) => {
   // req.user is populated by the 'authenticate' middleware
   const userId = req.user.uid;
   const {
@@ -135,16 +131,6 @@ app.post("/uploadSpeech", authenticate, async (req, res) => {
   logger.info(`Upload request for user: ${userId}, Speech Name: ${speechName}`, {
     structuredData: true,
   });
-
-  // --- Server-side Validation ---
-  if (!speechName || typeof speechName !== "string" || speechName.trim() === "") {
-    logger.warn("Bad request: Missing or invalid speechName.");
-    return res.status(400).send("Speech name is required.");
-  }
-  if (!fileContent || typeof fileContent !== "string" || fileContent.trim() === "") {
-    logger.warn("Bad request: Missing or empty fileContent for speech:", speechName);
-    return res.status(400).send("Speech content cannot be empty.");
-  }
 
   try {
     // Store the speech in Firestore

@@ -1,5 +1,5 @@
 // src/components/Dashboard.jsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import SpeechUploadForm from './SpeechUploadForm';
@@ -10,6 +10,16 @@ const Dashboard = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [toast, setToast] = useState('');
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast('');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const handleLogout = async () => {
     try {
@@ -17,7 +27,7 @@ const Dashboard = () => {
       navigate('/login');
     } catch (error) {
       console.error('Failed to log out:', error);
-      alert('Failed to log out!');
+      setToast('Failed to log out!');
     }
   };
 
@@ -27,6 +37,7 @@ const Dashboard = () => {
 
   return (
     <div className="container">
+      {toast && <div className="toast">{toast}</div>}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Dashboard</h2>
         <div>
