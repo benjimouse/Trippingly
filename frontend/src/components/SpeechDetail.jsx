@@ -84,7 +84,6 @@ const SpeechDetail = () => {
   const modalRef = useRef(null);
   const prevFocusRef = useRef(null);
 
-  // Generate a stable-ish id for new associations. Prefer crypto.randomUUID when available.
   const genAssocId = () => {
     try {
       if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -149,7 +148,7 @@ const SpeechDetail = () => {
       }
     };
     loadSpeechData();
-  }, [fetchSpeech, speechId, buildDisplayedContent, dispatch, genAssocId]); // Added dispatch, genAssocId
+  }, [fetchSpeech, speechId, dispatch]); // Added dispatch, genAssocId
 
   // Auto-dismiss toast (placed here so hooks run in the same order every render)
   useEffect(() => {
@@ -170,7 +169,11 @@ const SpeechDetail = () => {
         }
       }, 0);
     } else {
-  } catch (err) { console.error("Error restoring focus:", err); }
+      try {
+        if (prevFocusRef.current) {
+          prevFocusRef.current.focus();
+        }
+      } catch (err) { console.error("Error restoring focus:", err); }
     }
   }, [showEmojiPicker]);
 

@@ -4,6 +4,7 @@ module.exports = {
     ['@babel/preset-react', { runtime: 'automatic' }] // 'automatic' for new JSX transform
   ],
   plugins: [
+    '@babel/plugin-transform-runtime',
     [
       'module-resolver',
       {

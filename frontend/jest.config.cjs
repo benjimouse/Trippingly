@@ -6,7 +6,9 @@ module.exports = {
     '^.+\\.jsx?$': 'babel-jest',
   },
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.js'],
-  modulePathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/dist/'],
+  transformIgnorePatterns: [
+    '/node_modules/(?!(@emoji-mart/react|@emoji-mart/data)/)',
+  ],
   moduleFileExtensions: ['js', 'jsx', 'json', 'node'],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
