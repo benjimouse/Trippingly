@@ -117,7 +117,7 @@ const useSpeechAPI = (speechId, dispatch) => {
       const idToken = await getIdToken();
       if (!idToken) return false;
 
-      await fetch(`${cloudFunctionBaseUrl}/updateAssociationToggle`, {
+      const resp = await fetch(`${cloudFunctionBaseUrl}/updateAssociationToggle`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
@@ -125,12 +125,19 @@ const useSpeechAPI = (speechId, dispatch) => {
         },
         body: JSON.stringify({ speechId, assocId, showOriginal }),
       });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        console.error('Failed to update association toggle:', errData);
+        dispatch({ type: 'SET_TOAST', payload: errData.message || 'Failed to update association toggle' });
+        return false;
+      }
       return true;
     } catch (err) {
       console.error("Error updating association toggle on backend:", err);
+      dispatch({ type: 'SET_TOAST', payload: 'Failed to update association toggle' });
       return false;
     }
-  }, [currentUser, cloudFunctionBaseUrl, speechId, getIdToken]); // No dispatch for toast here, handled by component logic
+  }, [currentUser, cloudFunctionBaseUrl, speechId, dispatch, getIdToken]);
 
   return {
     fetchSpeech,

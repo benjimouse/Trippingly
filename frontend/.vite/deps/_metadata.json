@@ -1,0 +1,64 @@
+{
+  "hash": "057977a5",
+  "configHash": "3844b4ff",
+  "lockfileHash": "83d799f9",
+  "browserHash": "29c6894b",
+  "optimized": {
+    "react": {
+      "src": "../../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "a29b9a1e",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "fa631dd3",
+      "needsInterop": true
+    },
+    "react-router-dom": {
+      "src": "../../../node_modules/react-router-dom/dist/index.js",
+      "file": "react-router-dom.js",
+      "fileHash": "c908b4ec",
+      "needsInterop": false
+    },
+    "firebase/auth": {
+      "src": "../../node_modules/firebase/auth/dist/esm/index.esm.js",
+      "file": "firebase_auth.js",
+      "fileHash": "26a86814",
+      "needsInterop": false
+    },
+    "firebase/app": {
+      "src": "../../node_modules/firebase/app/dist/esm/index.esm.js",
+      "file": "firebase_app.js",
+      "fileHash": "38beeee5",
+      "needsInterop": false
+    },
+    "firebase/firestore": {
+      "src": "../../node_modules/firebase/firestore/dist/esm/index.esm.js",
+      "file": "firebase_firestore.js",
+      "fileHash": "ca749b1d",
+      "needsInterop": false
+    },
+    "@emoji-mart/react": {
+      "src": "../../../node_modules/@emoji-mart/react/dist/module.js",
+      "file": "@emoji-mart_react.js",
+      "fileHash": "f78ca8cd",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-JJGQ2MMO": {
+      "file": "chunk-JJGQ2MMO.js"
+    },
+    "chunk-ZBA3QG7R": {
+      "file": "chunk-ZBA3QG7R.js"
+    },
+    "chunk-XDEML3T5": {
+      "file": "chunk-XDEML3T5.js"
+    },
+    "chunk-5WRI5ZAA": {
+      "file": "chunk-5WRI5ZAA.js"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 // src/components/SpeechList.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom'; 
 
@@ -8,11 +8,13 @@ const SpeechList = () => {
   const [speeches, setSpeeches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [hasMore, setHasMore] = useState(true);
+  const lastVisibleRef = useRef(null);
 
   // Base URL for your Cloud Functions
   const cloudFunctionBaseUrl = import.meta.env.VITE_CLOUD_FUNCTION_URL;
 
-  const fetchSpeeches = useCallback(async () => {
+  const fetchSpeeches = useCallback(async (loadMore = false) => {
     if (!currentUser || !cloudFunctionBaseUrl) {
       setLoading(false);
       return;
@@ -23,7 +25,12 @@ const SpeechList = () => {
 
     try {
       const idToken = await currentUser.getIdToken();
-      const response = await fetch(`${cloudFunctionBaseUrl}/getSpeeches`, {
+      let url = `${cloudFunctionBaseUrl}/getSpeeches?limit=10`;
+      if (loadMore && lastVisibleRef.current) {
+        url += `&lastVisible=${lastVisibleRef.current}`;
+      }
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${idToken}`
@@ -33,7 +40,9 @@ const SpeechList = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('SpeechList: Fetched speeches successfully.', data.speeches);
-        setSpeeches(data.speeches);
+        setSpeeches(prev => loadMore ? [...prev, ...data.speeches] : data.speeches);
+        lastVisibleRef.current = data.lastVisible;
+        setHasMore(data.lastVisible !== null);
       } else {
         const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }));
         setError(errorData.message || 'Failed to fetch speeches.');
@@ -48,10 +57,12 @@ const SpeechList = () => {
   }, [currentUser, cloudFunctionBaseUrl]);
 
   useEffect(() => {
-    fetchSpeeches();
-  }, [fetchSpeeches]);
+    if(currentUser) {
+      fetchSpeeches();
+    }
+  }, [currentUser, fetchSpeeches]);
 
-  if (loading) {
+  if (loading && speeches.length === 0) {
     return <p>Loading your speeches...</p>;
   }
 
@@ -82,6 +93,11 @@ const SpeechList = () => {
         </div>
     </Link>
 ))}
+      {hasMore && (
+        <button onClick={() => fetchSpeeches(true)} disabled={loading}>
+          {loading ? 'Loading...' : 'Load More'}
+        </button>
+      )}
     </div>
   );
 };

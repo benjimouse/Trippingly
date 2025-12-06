@@ -1,280 +1,45 @@
-// functions/index.js
-const {
-  onRequest,
-} = require("firebase-functions/v2/https");
-const logger = require("firebase-functions/logger");
+const { onRequest } = require("firebase-functions/v2/https");
 const express = require("express");
 const cors = require("cors");
+const { initializeDb } = require("./db");
+const routes = require("./routes");
+const { authenticate } = require("./middleware/auth");
 
-// Import Firebase Admin SDK for server-side operations
-const admin = require("firebase-admin");
-
-// Initialize Admin SDK conditionally based on emulator presence
-if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
-  // When running with emulators, both frontend and backend MUST be initialized
-  // with the same project ID to prevent audience mismatch errors.
-  admin.initializeApp({ projectId: "trippingly-on-the-tongue" });
-} else {
-  // Use default initialization for production or non-emulator environments
-  admin.initializeApp();
-}
-
-
-const { validateRequest } = require("./middleware/validation.js");
-
-// Get Firestore instance
-const { FieldValue } = require("firebase-admin/firestore");
-const db = admin.firestore();
-
+initializeDb();
 
 const app = express();
 
-// Enable CORS for all origins in development.
-// IMPORTANT: For production, restrict this to your frontend's domain(s).
-app.use(cors({
-  origin: true,
-}));
+// Whitelist of allowed origins
+const allowedOrigins = [
+  "https://trippingly-on-the-tongue.web.app",
+  "http://localhost:5000",
+  // Add any other domains you want to whitelist
+];
+
+// CORS configuration
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = "The CORS policy for this site does not allow access from the specified Origin.";
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+};
+
+// Enable CORS with the specified options
+app.use(cors(corsOptions));
 
 // Middleware to parse JSON request bodies
 app.use(express.json());
 
-// --- Schemas ---
-const saveEmojiAssociationSchema = {
-  speechId: { required: true, type: "string" },
-  originalText: { required: true, type: "string" },
-  emoji: { required: true, type: "string" },
-  position: { required: true, type: "number" },
-  cleanSpeech: { required: true, type: "string" },
-};
-
-const uploadSpeechSchema = {
-  speechName: { required: true, type: "string", notEmpty: true },
-  fileContent: { required: true, type: "string", notEmpty: true },
-};
-
-
 // --- Authentication Middleware ---
-// This function will check if the user is authenticated via their ID token
-const authenticate = async (req, res, next) => {
-  // Check for Authorization header
-  if (!req.headers.authorization || !req.headers.authorization.startsWith("Bearer ")) {
-    logger.warn("Unauthorized access: No Authorization header or malformed token.");
-    return res.status(401).send("Unauthorized");
-  }
-
-  const idToken = req.headers.authorization.split("Bearer ")[1];
-
-  try {
-    // Verify the ID token using Firebase Admin SDK
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    // Attach the decoded token (which contains user UID) to the request
-    req.user = decodedToken;
-    next(); // Proceed to the next middleware/route handler
-  } catch (error) {
-    logger.error("Error verifying ID token:", error);
-    // Respond with 401 if token is invalid or expired
-    return res.status(401).send("Unauthorized: Invalid or expired token.");
-  }
-};
+app.use(authenticate);
 
 // --- API Endpoints ---
-// Save emoji association and clean speech text for a speech
-app.post("/saveEmojiAssociation", authenticate, validateRequest(saveEmojiAssociationSchema), async (req, res) => {
-  const userId = req.user.uid;
-  const {speechId, assocId, originalText, emoji, position, cleanSpeech} = req.body;
-
-  try {
-    // Reference to the speech document
-    const speechRef = db.collection("users").doc(userId).collection("speeches").doc(speechId);
-    // Save association in a subcollection 'emojiAssociations'
-    const assocData = {
-      originalText,
-      emoji,
-      position,
-      // allow client to provide initial showOriginal state; default false
-      showOriginal: req.body.showOriginal === true,
-      createdAt: FieldValue.serverTimestamp(),
-    };
-    if (assocId && typeof assocId === "string") {
-      // Use provided assocId as the document ID for idempotency across clients
-      await speechRef.collection("emojiAssociations").doc(assocId).set(assocData);
-    } else {
-      await speechRef.collection("emojiAssociations").add(assocData);
-    }
-    // Optionally, preserve the clean speech text in the main document
-    await speechRef.set({cleanSpeech}, {merge: true});
-    logger.info(`Saved emoji association for speech ${speechId} by user ${userId}`);
-    res.status(200).json({message: "Emoji association saved successfully."});
-  } catch (error) {
-    logger.error("Error saving emoji association:", error);
-    res.status(500).send("Failed to save emoji association.");
-  }
-});
-
-// Root endpoint (your existing backend message)
-app.get("/", (req, res) => {
-  logger.info("Hello from the Trippingly backend function!", {
-    structuredData: true,
-  });
-  res.send("Hello from the Trippingly backend function deployed to Firebase!");
-});
-
-// New endpoint to upload and store a speech
-app.post("/uploadSpeech", authenticate, validateRequest(uploadSpeechSchema), async (req, res) => {
-  // req.user is populated by the 'authenticate' middleware
-  const userId = req.user.uid;
-  const {
-    speechName,
-    fileContent,
-  } = req.body; // Expecting JSON with these fields
-
-  logger.info(`Upload request for user: ${userId}, Speech Name: ${speechName}`, {
-    structuredData: true,
-  });
-
-  try {
-    // Store the speech in Firestore
-    // Path: users/{userId}/speeches/{autoGeneratedSpeechId}
-    const speechRef = await db.collection("users").doc(userId).collection("speeches").add({
-      name: speechName,
-      content: fileContent,
-      userId: userId, // Redundant but good for quick queries
-      createdAt: FieldValue.serverTimestamp(), // Use the constant you defined
-      updatedAt: FieldValue.serverTimestamp(), // Use the constant you defined
-    });
-
-    logger.info(`Speech "'${speechName}'" uploaded by ${userId} with ID: ${speechRef.id}`, {
-      structuredData: true,
-    });
-    res.status(200).json({
-      message: `Speech "'${speechName}'" uploaded successfully!`,
-      speechId: speechRef.id,
-    });
-  } catch (error) {
-    logger.error("Error uploading speech to Firestore:", error);
-    res.status(500).send("Failed to upload speech. Please try again.");
-  }
-});
-
-app.get("/getSpeeches", authenticate, async (req, res) => {
-  const userId = req.user.uid;
-  logger.info(`Fetching speeches for user: ${userId}`, {structuredData: true});
-
-  try {
-    // Get a reference to the user's speeches subcollection
-    const speechesRef = db.collection("users").doc(userId).collection("speeches");
-
-    // Fetch documents, ordered by creation time (newest first)
-    const snapshot = await speechesRef.orderBy("createdAt", "desc").get();
-
-    if (snapshot.empty) {
-      logger.info(`No speeches found for user: ${userId}`);
-      return res.status(200).json({message: "No speeches found.", speeches: []});
-    }
-
-    // Map documents to an array of speech objects
-    const speeches = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      speeches.push({
-        id: doc.id,
-        name: data.name,
-        // You might want to truncate content if displaying a list,
-        // or only fetch content when the user views the full speech.
-        // For now, let's include full content for simplicity, but be mindful of data size.
-        content: data.content,
-        createdAt: data.createdAt ? data.createdAt.toDate() : null, // Convert Firestore Timestamp to JS Date
-      });
-    });
-
-    logger.info(`Found ${speeches.length} speeches for user: ${userId}`);
-    res.status(200).json({message: "Speeches fetched successfully.", speeches: speeches});
-  } catch (error) {
-    logger.error("Error fetching speeches from Firestore:", error);
-    res.status(500).send("Failed to fetch speeches. Please try again.");
-  }
-});
-
-app.get("/getSpeech/:speechId", authenticate, async (req, res) => {
-  const userId = req.user.uid;
-  const speechId = req.params.speechId; // Get speechId from URL parameters
-  logger.info(`Fetching speech ${speechId} for user: ${userId}`, {structuredData: true});
-
-  try {
-    // Get a reference to the specific speech document
-    const speechDocRef = db.collection("users").doc(userId).collection("speeches").doc(speechId);
-    const speechDoc = await speechDocRef.get();
-
-    if (!speechDoc.exists) {
-      logger.info(`Speech ${speechId} not found for user ${userId}`);
-      return res.status(404).json({message: "Speech not found."});
-    }
-
-    const speechData = speechDoc.data();
-
-    // IMPORTANT: Ensure the retrieved speech belongs to the authenticated user.
-    // This is already implicitly handled by the path db.collection('users').doc(userId),
-    // but explicitly checking userId from doc.data() is a good sanity check
-    // if you ever change your data model. For now, it's redundant but safe.
-    if (speechData.userId && speechData.userId !== userId) {
-      logger.warn(`User ${userId} attempted to access speech ${speechId} belonging to ${speechData.userId}`);
-      return res.status(403).json({message: "Access denied."});
-    }
-
-    logger.info(`Successfully fetched speech ${speechId} for user ${userId}`);
-    res.status(200).json({id: speechDoc.id,
-      name: speechData.name,
-      content: speechData.content,
-      createdAt: speechData.createdAt ? speechData.createdAt.toDate() : null, // Convert Timestamp to JS Date
-    });
-  } catch (error) {
-    logger.error(`Error fetching speech ${speechId} for user ${userId}:`, error);
-    res.status(500).send("Failed to fetch speech details. Please try again.");
-  }
-});
-
-app.delete("/deleteSpeech/:speechId", authenticate, async (req, res) => {
-  const userId = req.user.uid;
-  const speechId = req.params.speechId;
-  logger.info(`Deleting speech ${speechId} for user: ${userId}`, {structuredData: true});
-
-  try {
-    const speechDocRef = db.collection("users").doc(userId).collection("speeches").doc(speechId);
-    await speechDocRef.delete();
-
-    logger.info(`Successfully deleted speech ${speechId} for user ${userId}`);
-    res.status(200).json({message: "Speech deleted successfully."});
-  } catch (error) {
-    logger.error(`Error deleting speech ${speechId} for user ${userId}:`, error);
-    res.status(500).send("Failed to delete speech. Please try again.");
-  }
-});
-
-// Update association toggle state (showOriginal)
-app.post("/updateAssociationToggle", authenticate, async (req, res) => {
-  const userId = req.user.uid;
-  const {speechId, assocId, showOriginal} = req.body;
-  if (!speechId || typeof speechId !== "string") {
-    return res.status(400).send("speechId is required");
-  }
-  if (!assocId || typeof assocId !== "string") {
-    return res.status(400).send("assocId is required");
-  }
-  try {
-    const assocRef = db
-        .collection("users")
-        .doc(userId)
-        .collection("speeches")
-        .doc(speechId)
-        .collection("emojiAssociations")
-        .doc(assocId);
-    await assocRef.set({showOriginal}, {merge: true});
-    res.status(200).json({message: "Updated association toggle"});
-  } catch (err) {
-    logger.error("Failed to update association toggle:", err);
-    res.status(500).send("Failed to update association toggle");
-  }
-});
+app.use("/", routes);
 
 // Expose the Express app as a Cloud Function
 exports.api = onRequest(app);
