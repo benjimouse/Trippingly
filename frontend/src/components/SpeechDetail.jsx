@@ -177,8 +177,6 @@ const SpeechDetail = () => {
     }
   }, [showEmojiPicker]);
 
-
-
   const handleDeleteClick = async () => {
     if (window.confirm('Are you sure you want to delete this speech?')) {
       const success = await deleteSpeech(); // Call API hook's deleteSpeech
@@ -188,35 +186,6 @@ const SpeechDetail = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="container">
-        <h2>Speech Detail</h2>
-        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
-        <p>Loading speech details...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container">
-        <h2>Speech Detail</h2>
-        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
-        <p className="error">Error: {error}</p>
-      </div>
-    );
-  }
-
-  if (!speech) {
-    return (
-      <div className="container">
-        <h2>Speech Detail</h2>
-        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
-        <p>Speech not found or no data available.</p>
-      </div>
-    );
-  }
   const handleMouseUp = () => {
     const contentEl = document.getElementById('speech-content');
     const selectionObj = window.getSelection();
@@ -233,9 +202,9 @@ const SpeechDetail = () => {
       dispatch({ type: 'SET_SELECTION', payload: null });
       return;
     }
-  // Compute start relative to the original (clean) speech so positions remain stable
-  const content = cleanSpeech;
-  const start = content.indexOf(selectedText);
+    // Compute start relative to the original (clean) speech so positions remain stable
+    const content = cleanSpeech;
+    const start = content.indexOf(selectedText);
     if (start === -1) {
       dispatch({ type: 'SET_SELECTION', payload: null });
       return;
@@ -246,7 +215,7 @@ const SpeechDetail = () => {
 
   const handleEmojiPick = (emoji) => {
     if (!selection || !speech) return;
-  const { start, text } = selection;
+    const { start, text } = selection;
     // Replace highlighted text with emoji
     // Create an association with a stable id and position relative to cleanSpeech
     const assoc = { id: genAssocId(), position: start, length: text.length, originalText: text, emoji };
@@ -279,8 +248,6 @@ const SpeechDetail = () => {
     })();
   };
 
-  
-
   // Toggle an association's display between emoji and original text (use assoc id)
   const toggleAssociation = async (assocId) => { // Made async as it calls an async hook function
     const nextToggles = { ...toggles, [assocId]: !toggles[assocId] };
@@ -297,7 +264,6 @@ const SpeechDetail = () => {
     dispatch({ type: 'UPDATE_ASSOCIATIONS_AND_TOGGLES', payload: { nextAssociations: associations, nextToggles: nextToggles, newSpeechContent: newSpeechContent } });
   };
 
-  // Helper to render segments (used in JSX)
   const renderSegments = useCallback(() => {
     if (!cleanSpeech || !speech) return [{ type: 'text', text: speech.content }];
     const segs = [];
@@ -311,6 +277,35 @@ const SpeechDetail = () => {
     return segs;
   }, [cleanSpeech, speech, associations, toggles]); // Added speech to deps
 
+  if (loading) {
+    return (
+      <div className="container">
+        <h2>Speech Detail</h2>
+        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
+        <p>Loading speech details...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container">
+        <h2>Speech Detail</h2>
+        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
+        <p className="error">Error: {error}</p>
+      </div>
+    );
+  }
+
+  if (!speech) {
+    return (
+      <div className="container">
+        <h2>Speech Detail</h2>
+        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
+        <p>Speech not found or no data available.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container">

@@ -54,7 +54,7 @@ const useSpeechAPI = (speechId, dispatch) => {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
     return null;
-  }, [currentUser, cloudFunctionBaseUrl, speechId, dispatch, getIdToken]);
+  }, [cloudFunctionBaseUrl, speechId, dispatch, getIdToken]);
 
   // Save emoji association to backend
   const saveEmojiAssociation = useCallback(async ({ assocId, originalText, emoji, position, cleanSpeech }) => {
@@ -82,7 +82,7 @@ const useSpeechAPI = (speechId, dispatch) => {
       dispatch({ type: 'SET_TOAST', payload: 'Failed to save emoji association' });
       return false;
     }
-  }, [currentUser, cloudFunctionBaseUrl, speechId, dispatch, getIdToken]);
+  }, [cloudFunctionBaseUrl, speechId, dispatch, getIdToken]);
 
   // Delete speech
   const deleteSpeech = useCallback(async () => {
@@ -109,7 +109,7 @@ const useSpeechAPI = (speechId, dispatch) => {
       dispatch({ type: 'SET_ERROR', payload: 'An unexpected error occurred while deleting the speech.' });
       return false;
     }
-  }, [currentUser, cloudFunctionBaseUrl, speechId, dispatch, getIdToken]);
+  }, [cloudFunctionBaseUrl, speechId, dispatch, getIdToken]);
 
   // Update association toggle state on backend
   const updateAssociationToggle = useCallback(async (assocId, showOriginal) => {
@@ -137,7 +137,7 @@ const useSpeechAPI = (speechId, dispatch) => {
       dispatch({ type: 'SET_TOAST', payload: 'Failed to update association toggle' });
       return false;
     }
-  }, [currentUser, cloudFunctionBaseUrl, speechId, dispatch, getIdToken]);
+  }, [cloudFunctionBaseUrl, speechId, dispatch, getIdToken]);
 
   return {
     fetchSpeech,

@@ -26,12 +26,20 @@ export const AuthContextProvider = ({ children }) => {
     return createUserWithEmailAndPassword(auth, email, password);
   };
 
-  const login = (email, password) => {
-    return signInWithEmailAndPassword(auth, email, password);
+  const login = async (email, password) => {
+    await signInWithEmailAndPassword(auth, email, password);
+    return forceRefreshUserToken();
   };
 
   const logout = () => {
     return signOut(auth);
+  };
+
+  const forceRefreshUserToken = () => {
+    if (auth.currentUser) {
+      return auth.currentUser.getIdTokenResult(true);
+    }
+    return Promise.resolve(null);
   };
 
   // Listen for auth state changes (Firebase's built-in listener)
@@ -50,7 +58,8 @@ export const AuthContextProvider = ({ children }) => {
     loading,
     signup,
     login,
-    logout
+    logout,
+    forceRefreshUserToken
   };
 
   // Only render children when auth state has been determined

@@ -13,6 +13,7 @@ const app = express();
 const allowedOrigins = [
   "https://trippingly-on-the-tongue.web.app",
   "http://localhost:5000",
+  "http://localhost:5173",
   // Add any other domains you want to whitelist
 ];
 
